@@ -1,5 +1,7 @@
 #include "./../../libwindow.h"
 
+#include <stdio.h>
+
 int main() {
     t_window    window;
     bool        exit;
@@ -11,8 +13,17 @@ int main() {
         t_event event;
 
         while (lw_pollEvents(window, &event)) {
-            if (event.type == LW_EVENT_QUIT) {
-                exit = true;
+            switch (event.type) {
+                case (LW_EVENT_QUIT): { exit = true; } break;
+                case (LW_EVENT_KEY): {
+                    printf("%d\n", event.key.key);
+                } break;
+                case (LW_EVENT_BUTTON): {
+                    printf("%d\n", event.button.button);
+                } break;
+                case (LW_EVENT_MOTION): {
+                    printf("%d %d\n", event.motion.x, event.motion.y);
+                } break;
             }
         }
     }

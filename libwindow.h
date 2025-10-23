@@ -30,25 +30,74 @@ typedef struct s_window     *t_window;
 enum {
     LW_EVENT_NONE = 0,
     LW_EVENT_QUIT,
+    LW_EVENT_KEY,
+    LW_EVENT_BUTTON,
+    LW_EVENT_MOTION,
 
     /* ... */
     LW_EVENT_COUNT
 };
 
-struct s_eventQuit {
+struct s_quitEvent {
+    uint64_t    type;
+    uint64_t    time;
     t_window    window;
-    uint32_t    type;
-    uint32_t    time;
 };
+
+struct s_keyEvent {
+    uint64_t    type;
+    uint64_t    time;
+    t_window    window;
+    uint32_t    key;
+    uint8_t     state;
+};
+
+struct s_buttonEvent {
+    uint64_t    type;
+    uint64_t    time;
+    t_window    window;
+    uint32_t    button;
+    uint32_t    x;
+    uint32_t    y;
+    uint8_t     state;
+};
+
+struct s_motionEvent {
+    uint64_t    type;
+    uint64_t    time;
+    t_window    window;
+    uint32_t    x, xrel;
+    uint32_t    y, yrel;
+};
+
+typedef struct s_quitEvent      t_quitEvent;
+typedef struct s_keyEvent       t_keyEvent;
+typedef struct s_buttonEvent    t_buttonEvent;
+typedef struct s_motionEvent    t_motionEvent;
 
 struct s_event {
     uint32_t        type;
     union {
-        struct s_eventQuit  quit;
+        t_quitEvent     quit;
+        t_keyEvent      key;
+        t_buttonEvent   button;
+        t_motionEvent   motion;
     };
 };
 
 typedef struct s_event  t_event;
+
+/* MODULE: Input */
+
+enum {
+    LW_BUTTON_NONE = 0,
+    LW_BUTTON_LEFT = 1, LW_LEFT_BUTTON = LW_BUTTON_LEFT,
+    LW_BUTTON_RIGHT = 2, LW_RIGHT_BUTTON = LW_BUTTON_RIGHT,
+    LW_BUTTON_MIDDLE = 3, LW_MIDDLE_BUTTON = LW_BUTTON_MIDDLE,
+
+    /* ... */
+    LW_BUTTON_COUNT
+};
 
 /* SECTION: API
  * * * * * * * */
@@ -93,6 +142,7 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 #   include <X11/Xlib.h>
 #   include <X11/Xatom.h>
 #   include <X11/Xutil.h>
+#   include <X11/XKBlib.h>
 
 /* SECTION: Types
  * * * * * * * * */
@@ -115,8 +165,8 @@ struct s_window {
     } xatom;
 
     struct {
-        /* Let's predefine the size of the queue to 128, just for now */
-        t_event queue[128];
+        /* Let's predefine the size of the queue to 1024, just for now */
+        t_event queue[1024];
         size_t  count;
     } eventQueue;
 };
@@ -151,7 +201,7 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
 
     attr = (XSetWindowAttributes) { 0 };
     attr.background_pixel = 0;
-    attr.event_mask = ExposureMask | ClientMessage;
+    attr.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | ExposureMask | ClientMessage;
 
     attr.colormap = XCreateColormap(window->xlib.display, window->xlib.root_id, window->xutil.visual.visual, AllocNone);
     if (!attr.colormap) { return (false); }
@@ -294,7 +344,7 @@ LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
 LIBWINDOW_API bool  lw_pushEvent(t_window window, t_event *event) {
     /* Safety checks... */
     if (!window || !event || !event->type) { return (false); }
-    if (window->eventQueue.count >= 128) { return (false); }
+    if (window->eventQueue.count >= 1024) { return (false); }
 
     /* Push the event to the end of the queue... */
     window->eventQueue.queue[window->eventQueue.count++] = *event;
@@ -356,20 +406,97 @@ static bool lw_pollEventsWindow(t_window window, t_event *event) {
 }
 
 static bool lw_pollEventsPlatform(t_window window) {
-    XEvent  event;
+    XEvent  xevent;
 
     if (!window) { return (false); }
     while (XPending(window->xlib.display)) {
-        XNextEvent(window->xlib.display, &event);
+        XNextEvent(window->xlib.display, &xevent);
         
-        switch (event.type) {
+        switch (xevent.type) {
             case (ClientMessage): {
-                if (event.xclient.data.l[0] == (long) window->xatom.wm_delete_window) {
+                if (xevent.xclient.data.l[0] == (long) window->xatom.wm_delete_window) {
                     t_event event;
 
-                    event.type = LW_EVENT_QUIT;
+                    event = (t_event) {
+                        .type = LW_EVENT_QUIT,
+                        .quit = (t_quitEvent) {
+                            .type = LW_EVENT_QUIT,
+                            .time = lw_getTime(),
+                            .window = window,
+                        }
+                    };
                     lw_pushEvent(window, &event);
                 }
+            } break;
+
+            case (KeyPress):
+            case (KeyRelease): {
+                t_event     event;
+                uint32_t    key;
+
+                key = XkbKeycodeToKeysym(window->xlib.display, xevent.xkey.keycode, 0, xevent.xkey.state & ShiftMask ? 1 : 0);
+                event = (t_event) {
+                    .type = LW_EVENT_KEY,
+                    .key = (t_keyEvent) {
+                        .type = LW_EVENT_KEY,
+                        .time = lw_getTime(),
+                        .window = window,
+                        .key = key, /* temporary solution (until I implement a keymap map) */
+                        .state = xevent.xkey.state == KeyPress ? true : false,
+                    }
+                };
+                lw_pushEvent(window, &event);
+            } break;
+
+            case (ButtonPress):
+            case (ButtonRelease): {
+                t_event event;
+
+                /* Handle scroll event... */
+                if (xevent.xbutton.button == 4 || xevent.xbutton.button == 5) {
+                    /* Implement scrolling here... */
+                    event = (t_event) { 0 };
+                }
+                /* Handle input event... */
+                else {
+                    uint8_t button;
+                    
+                    if (xevent.xbutton.button == 1) { button = LW_BUTTON_LEFT; }
+                    else if (xevent.xbutton.button == 2) { button = LW_BUTTON_MIDDLE; }
+                    else if (xevent.xbutton.button == 3) { button = LW_BUTTON_RIGHT; }
+                    event = (t_event) {
+                        .type = LW_EVENT_BUTTON,
+                        .button = (t_buttonEvent) {
+                            .type = LW_EVENT_BUTTON,
+                            .time = lw_getTime(),
+                            .window = window,
+                            .button = button,
+                            .x = (uint32_t) xevent.xbutton.x,
+                            .y = (uint32_t) xevent.xbutton.y,
+                            .state = xevent.xkey.state == KeyPress ? true : false,
+                        }
+                    };
+                }
+                lw_pushEvent(window, &event);
+
+            } break;
+
+            case (MotionNotify): {
+                t_event event;
+                
+                event = (t_event) {
+                    .type = LW_EVENT_MOTION,
+                    .motion = (t_motionEvent) {
+                        .type = LW_EVENT_MOTION,
+                        .time = lw_getTime(),
+                        .window = window,
+                        .x = (uint32_t) xevent.xmotion.x,
+                        .xrel = (uint32_t) xevent.xmotion.x_root,
+                        .y = (uint32_t) xevent.xmotion.y,
+                        .yrel = (uint32_t) xevent.xmotion.y_root,
+                    }
+                };
+                lw_pushEvent(window, &event);
             } break;
         }
     }
