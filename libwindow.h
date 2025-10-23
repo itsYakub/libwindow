@@ -58,6 +58,17 @@ typedef struct s_event  t_event;
 LIBWINDOW_API bool  lw_createWindow(t_window *, const size_t, const size_t, const char *);
 LIBWINDOW_API bool  lw_destroyWindow(t_window);
 
+LIBWINDOW_API bool  lw_getWindowSize(t_window, size_t *, size_t *);
+LIBWINDOW_API bool  lw_setWindowSize(t_window, const size_t, const size_t);
+LIBWINDOW_API bool  lw_setWindowMinSize(t_window, const size_t, const size_t);
+LIBWINDOW_API bool  lw_setWindowMaxSize(t_window, const size_t, const size_t);
+
+LIBWINDOW_API bool  lw_getWindowPosition(t_window, size_t *, size_t *);
+LIBWINDOW_API bool  lw_setWindowPosition(t_window, const size_t, const size_t);
+
+LIBWINDOW_API bool  lw_getWindowTitle(t_window, char *, const size_t);
+LIBWINDOW_API bool  lw_setWindowTitle(t_window, const char *);
+
 /* MODULE: Event */
 
 LIBWINDOW_API bool  lw_pollEvents(t_window, t_event *);
@@ -169,6 +180,99 @@ LIBWINDOW_API bool  lw_destroyWindow(t_window window) {
     if (window->xlib.display)   { XCloseDisplay(window->xlib.display), window->xlib.display = 0; }
 
     free(window);
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_getWindowSize(t_window window, size_t *width, size_t *height) {
+    XWindowAttributes   attr;
+
+    /* Safety check... */
+    if (!window) { return (false); }
+    if (!XGetWindowAttributes(window->xlib.display, window->xlib.window_id, &attr)) { return (false); }
+    if (width) { *width = attr.width; }
+    if (height) { *height = attr.height; }
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_setWindowSize(t_window window, const size_t width, const size_t height) {
+    /* Safety check... */
+    if (!window) { return (false); }
+    if (!XResizeWindow(window->xlib.display, window->xlib.window_id, width, height)) { return (false); }
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_setWindowMinSize(t_window window, const size_t width, const size_t height) {
+    XSizeHints  hints;
+    int64_t     supp;
+
+    /* Safety check... */
+    if (!window) { return (false); }
+    
+    XGetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints, &supp);
+    hints.flags = PMinSize;
+    hints.min_width = width > 0 ? width : 1;
+    hints.min_height = height > 0 ? height : 1;
+    XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_setWindowMaxSize(t_window window, const size_t width, const size_t height) {
+    XSizeHints  hints;
+    int64_t     supp;
+
+    /* Safety check... */
+    if (!window) { return (false); }
+    
+    XGetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints, &supp);
+    hints.flags = PMaxSize;
+    hints.max_width = width > 0 ? width : 1;
+    hints.max_height = height > 0 ? height : 1;
+    XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_getWindowPosition(t_window window, size_t *x, size_t *y) {
+    XWindowAttributes   attr;
+
+    /* Safety check... */
+    if (!window) { return (false); }
+    if (!XGetWindowAttributes(window->xlib.display, window->xlib.window_id, &attr)) { return (false); }
+    if (x) { *x = attr.x; }
+    if (y) { *y = attr.y; }
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_setWindowPosition(t_window window, const size_t x, const size_t y) {
+    XSizeHints  hints;
+    int64_t     supp;
+
+    /* Safety check... */
+    if (!window) { return (false); }
+    
+    XGetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints, &supp);
+    hints.flags = PPosition;
+    hints.x = x;
+    hints.y = y;
+    XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_getWindowTitle(t_window window, char *title, const size_t size) {
+    char    *fetch;
+
+    /* Safety check... */
+    if (!window) { return (false); }
+    if (!XFetchName(window->xlib.display, window->xlib.window_id, &fetch)) { return (false); }
+    title = strncpy(title, fetch, size);
+    title[size - 1] = 0;
+    XFree(fetch);
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_setWindowTitle(t_window window, const char *title) {
+    /* Safety check... */
+    if (!window) { return (false); }
+    if (!XStoreName(window->xlib.display, window->xlib.window_id, title)) { return (false); }
     return (true);
 }
 
