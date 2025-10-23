@@ -6,21 +6,9 @@ TARGET		= $(MK_ROOT)$(MK_NAME).h
 
 # ========
 
-.PHONY : all
+.PHONY : examples
 
-all : install
-
-.PHONY : install
-
-install : remove
-	mkdir /usr/local/include/$(MK_NAME)/
-	cp -f $(TARGET) /usr/local/include/$(MK_NAME)/
-	ln -s /usr/local/include/$(MK_NAME)/$(MK_NAME).h /usr/local/include/$(MK_NAME).h
-
-.PHONY : remove
-
-remove :
-	rm -rf /usr/local/include/$(MK_NAME)
-	rm -f /usr/local/include/$(MK_NAME).h
+examples :
+	make -C $(MK_ROOT)examples/x11
 
 # ========

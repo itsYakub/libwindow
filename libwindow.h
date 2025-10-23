@@ -18,80 +18,75 @@
 #  endif /* __cplusplus */
 # endif /* LIBWINDOW_API */
 
+/* SECTION: Types
+ * * * * * * * * */
 
-
-/* SECTION: API
- * * * * * * * */
-
-/* MODULE: Window  */
-/* * * * * * * * * */
+/* MODULE: Window */
 
 typedef struct s_window     *t_window;
 
-LIBWINDOW_API bool  lw_createWindow(t_window *, const size_t, const size_t, const char *);
-LIBWINDOW_API bool  lw_destroyWindow(t_window);
-
 /* MODULE: Event */
-/* * * * * * * * */
 
 enum {
     LW_EVENT_NONE = 0,
     LW_EVENT_QUIT,
-    LW_EVENT_USER,
 
     /* ... */
     LW_EVENT_COUNT
 };
 
 struct s_eventQuit {
+    t_window    window;
     uint32_t    type;
     uint32_t    time;
 };
-
-typedef struct s_eventQuit  t_eventQuit;
-
-struct s_eventUser {
-    uint32_t    type;
-    uint32_t    time;
-
-    union {
-        uint8_t     b[64];
-        uint16_t    s[32];
-        uint32_t    i[16];
-        uint64_t    l[8];
-    } data;
-};
-
-typedef struct s_eventUser  t_eventUser;
 
 struct s_event {
     uint32_t        type;
     union {
-        t_eventQuit quit;
-        t_eventUser user;
+        struct s_eventQuit  quit;
     };
 };
 
-typedef struct s_event      t_event;
+typedef struct s_event  t_event;
+
+/* SECTION: API
+ * * * * * * * */
+
+/* MODULE: Window */
+
+LIBWINDOW_API bool  lw_createWindow(t_window *, const size_t, const size_t, const char *);
+LIBWINDOW_API bool  lw_destroyWindow(t_window);
+
+/* MODULE: Event */
 
 LIBWINDOW_API bool  lw_pollEvents(t_window, t_event *);
 LIBWINDOW_API bool  lw_pushEvent(t_window, t_event *);
 LIBWINDOW_API bool  lw_popEvent(t_window, t_event *);
 LIBWINDOW_API bool  lw_flushEvent(t_window);
 
+/* MODULE: Time */
+
+LIBWINDOW_API uint64_t  lw_getTime(void);
+LIBWINDOW_API bool      lw_waitTime(uint64_t);
+
 # if defined LIBWINDOW_IMPLEMENTATION
 #  include <stdlib.h>
 #  include <string.h>
 #
 #  if defined (LIBWINDOW_X11)
+#   include <unistd.h>
+#   include <sys/time.h>
+#
 #   include <X11/X.h>
 #   include <X11/Xlib.h>
 #   include <X11/Xatom.h>
 #   include <X11/Xutil.h>
-#   if defined (LIBWINDOW_OPENGL)
-#    include <GL/glx.h>
-#    include <GL/glxext.h>
-#   endif /* LIBWINDOW_OPENGL */
+
+/* SECTION: Types
+ * * * * * * * * */
+
+/* MODULE: Window */
 
 struct s_window {
     struct {
@@ -99,6 +94,10 @@ struct s_window {
         XID     root_id,
                 window_id;
     } xlib;
+
+    struct {
+        XVisualInfo visual;
+    } xutil;
 
     struct {
         XID     wm_delete_window;
@@ -111,10 +110,10 @@ struct s_window {
     } eventQueue;
 };
 
-typedef struct s_window *t_window;
-
 /* SECTION: Internal API
  * * * * * * * * * * * */
+
+/* MODULE: Event */
 
 static bool lw_pollEventsWindow(t_window, t_event *);
 static bool lw_pollEventsPlatform(t_window);
@@ -122,11 +121,11 @@ static bool lw_pollEventsPlatform(t_window);
 /* SECTION: API
  * * * * * * * */
 
-/* MODULE: Window  */
-/* * * * * * * * * */
+/* MODULE: Window */
 
 LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const size_t height, const char *title) {
-    t_window    window;
+    XSetWindowAttributes    attr;
+    t_window                window;
 
     window = (t_window) calloc(1, sizeof(struct s_window));
     if (!window) { return (false); }
@@ -137,13 +136,23 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
     window->xlib.root_id = XDefaultRootWindow(window->xlib.display);
     if (!window->xlib.root_id) { return (false); }
 
-    window->xlib.window_id = XCreateSimpleWindow(window->xlib.display, window->xlib.root_id, 0, 0, width, height, 0, 0, 0);
+    if (!XMatchVisualInfo(window->xlib.display, DefaultScreen(window->xlib.display), 24, TrueColor, &window->xutil.visual)) { return (false); } 
+
+    attr = (XSetWindowAttributes) { 0 };
+    attr.background_pixel = 0;
+    attr.event_mask = ExposureMask | ClientMessage;
+
+    attr.colormap = XCreateColormap(window->xlib.display, window->xlib.root_id, window->xutil.visual.visual, AllocNone);
+    if (!attr.colormap) { return (false); }
+
+    window->xlib.window_id = XCreateWindow(window->xlib.display, window->xlib.root_id, 0, 0, width, height, 0, window->xutil.visual.depth, InputOutput, window->xutil.visual.visual, CWColormap | CWBorderPixel | CWBackPixel | CWEventMask, &attr); 
     if (!window->xlib.window_id) { return (false); }
 
     window->xatom.wm_delete_window = XInternAtom(window->xlib.display, "WM_DELETE_WINDOW", false);
     if (!window->xatom.wm_delete_window) { return (false); }
 
     XSetWMProtocols(window->xlib.display, window->xlib.window_id, &window->xatom.wm_delete_window, 1);
+    XSelectInput(window->xlib.display, window->xlib.window_id, attr.event_mask);
     XStoreName(window->xlib.display, window->xlib.window_id, title);
     XMapWindow(window->xlib.display, window->xlib.window_id);
 
@@ -164,7 +173,6 @@ LIBWINDOW_API bool  lw_destroyWindow(t_window window) {
 }
 
 /* MODULE: Event */
-/* * * * * * * * */
 
 LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
     /* Safety check... */
@@ -211,8 +219,28 @@ LIBWINDOW_API bool  lw_flushEvent(t_window window) {
     return (true);
 }
 
+/* MODULE: Time */
+
+LIBWINDOW_API uint64_t  lw_getTime(void) {
+    struct timeval  time;
+
+    gettimeofday(&time, 0);
+    return (time.tv_sec * 1000 + time.tv_usec / 1000);
+}
+
+LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
+    uint64_t    t;
+
+    t = lw_getTime();
+    while ((lw_getTime() - t) < ms);
+
+    return (true);
+}
+
 /* SECTION: Internal API
  * * * * * * * * * * * */
+
+/* MODULE: Event */
 
 static bool lw_pollEventsWindow(t_window window, t_event *event) {
     /* Simple scenario:
