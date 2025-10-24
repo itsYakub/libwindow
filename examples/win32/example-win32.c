@@ -1,12 +1,10 @@
 #include "./../../libwindow.h"
 
-#include <stdio.h>
-
 int main() {
     t_window    window;
     bool        exit;
 
-    lw_createWindow(&window, 800, 600, "libwindow - hello, x11!");
+    lw_createWindow(&window, 800, 600, "libwindow - hello, win32!");
 
     exit = false;
     while (!exit) {

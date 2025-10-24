@@ -32,7 +32,7 @@ enum {
     LW_PROP_X11_SCREEN_ID,
 
     LW_PROP_WIN32_HWND,
-    LW_PROP_WIN32_INSTANCE,
+    LW_PROP_WIN32_HINSTANCE,
     LW_PROP_WIN32_HDC,
 
     /* ... */
@@ -148,8 +148,12 @@ LIBWINDOW_API bool  lw_flushEvent(t_window);
 LIBWINDOW_API uint64_t  lw_getTime(void);
 LIBWINDOW_API bool      lw_waitTime(uint64_t);
 
+// #define LIBWINDOW_IMPLEMENTATION
+// #define LIBWINDOW_WIN32
+
 # if defined LIBWINDOW_IMPLEMENTATION
 #  include <stdlib.h>
+#  include <time.h>
 #  include <string.h>
 #  if defined (__linux__)
 #   include <unistd.h>
@@ -203,7 +207,11 @@ struct s_window {
 #  if defined (LIBWINDOW_WIN32)
 
 struct s_window {
-    /* win32 stuff goes here... */
+    struct {
+        HANDLE      hinstance;
+        HANDLE      hwnd;
+        WNDCLASS    wndclass;
+    } win32;
 
     struct {
         /* Let's predefine the size of the queue to 1024, just for now */
@@ -222,8 +230,9 @@ struct s_window {
 
 /* MODULE: Event */
 
-static bool lw_pollEventsWindow(t_window, t_event *);
 static bool lw_pollEventsPlatform(t_window);
+
+
 
 /* SECTION: API
  * * * * * * * */
@@ -245,7 +254,9 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
 
     window->xlib.screen_id = XDefaultScreen(window->xlib.display);
 
-    if (!XMatchVisualInfo(window->xlib.display, window->xlib.screen_id, 24, TrueColor, &window->xutil.visual)) { return (false); } 
+    window->xutil.visual.visual = XDefaultVisual(window->xlib.display, window->xlib.screen_id);
+    if (!window->xutil.visual.visual) { return (false); }
+    if (!XMatchVisualInfo(window->xlib.display, window->xlib.screen_id, 24, TrueColor, &window->xutil.visual)) { return (false); }
 
     attr = (XSetWindowAttributes) { 0 };
     attr.background_pixel = 0;
@@ -396,7 +407,7 @@ LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
     if (!window) { return (false); }
 
     /* Step 1: Polling events from 'window' queue... */
-    if (lw_pollEventsWindow(window, event)) { return (true); }
+    if (lw_popEvent(window, event)) { return (true); }
 
     /* Step 2: Polling events from platform's queue... */
     lw_pollEventsPlatform(window);
@@ -462,15 +473,6 @@ LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
  * * * * * * * * * * * */
 
 /* MODULE: Event */
-
-static bool lw_pollEventsWindow(t_window window, t_event *event) {
-    /* Simple scenario:
-     * - if safety checks fail, we return false;
-     * - if there're no events (queue size is 0), we return false;
-     * - if event was popped from the top of the queue, we return true;
-     * */
-    return (lw_popEvent(window, event));
-}
 
 static bool lw_pollEventsPlatform(t_window window) {
     XEvent  xevent;
@@ -573,7 +575,191 @@ static bool lw_pollEventsPlatform(t_window window) {
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
 
-/* win32 API goes here... */
+/* SECTION: Internal API
+ * * * * * * * * * * * */
+
+/* MODULE: Window */
+
+static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
+
+
+
+/* SECTION: API
+ * * * * * * * */
+
+/* MODULE: Window */
+
+LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const size_t height, const char *title) {
+    STARTUPINFO startupinfo;
+    t_window    window;
+
+    window = (t_window) calloc(1, sizeof(struct s_window));
+    if (!window) { return (false); }
+
+    window->win32.hinstance = GetModuleHandle(0);
+    if (!window->win32.hinstance) { return (false); }
+
+    window->win32.wndclass = (WNDCLASS) { 0 };
+    window->win32.wndclass.style = CS_VREDRAW | CS_HREDRAW | CS_OWNDC;
+    window->win32.wndclass.lpfnWndProc = WindowProc;
+    window->win32.wndclass.hInstance = window->win32.hinstance;
+    window->win32.wndclass.lpszClassName = title;
+    if (!RegisterClass(&window->win32.wndclass)) { return (false); }
+
+    window->win32.hwnd = CreateWindowEx(0, window->win32.wndclass.lpszClassName, title, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, window->win32.hinstance, window);
+    if (!window->win32.hwnd) { return (false); }
+
+    GetStartupInfo(&startupinfo);
+    ShowWindow(window->win32.hwnd, startupinfo.wShowWindow);
+
+    *result = window;
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_destroyWindow(t_window window) {
+    /* Safety check... */
+    if (!window) { return (false); }
+
+    PostQuitMessage(0);
+    free(window);
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_getWindowSize(t_window, size_t *, size_t *);
+LIBWINDOW_API bool  lw_setWindowSize(t_window, const size_t, const size_t);
+LIBWINDOW_API bool  lw_setWindowMinSize(t_window, const size_t, const size_t);
+LIBWINDOW_API bool  lw_setWindowMaxSize(t_window, const size_t, const size_t);
+
+LIBWINDOW_API bool  lw_getWindowPosition(t_window, size_t *, size_t *);
+LIBWINDOW_API bool  lw_setWindowPosition(t_window, const size_t, const size_t);
+
+LIBWINDOW_API bool  lw_getWindowTitle(t_window, char *, const size_t);
+LIBWINDOW_API bool  lw_setWindowTitle(t_window, const char *);
+
+LIBWINDOW_API void  *lw_getWindowProp(t_window window, const uint64_t prop) {
+    /* Safety check... */
+    if (!window) { return (0); }
+
+    switch (prop) {
+        case (LW_PROP_WIN32_HWND): { return (window->win32.hwnd); }
+        case (LW_PROP_WIN32_HINSTANCE): { return (window->win32.hinstance); }
+    }
+
+    return (0);
+}
+
+/* MODULE: Event */
+
+LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
+    MSG msg;
+
+    /* Safety check... */
+    if (!window) { return (false); }
+
+    /* Step 1: Polling events from 'window' queue... */
+    if (lw_popEvent(window, event)) { return (true); }
+
+    /* Step 2: Polling events from platform's queue... */
+    while (GetMessage(&msg, 0, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    memset(event, 0, sizeof(t_event));
+    return (false);
+}
+
+LIBWINDOW_API bool  lw_pushEvent(t_window window, t_event *event) {
+    /* Safety checks... */
+    if (!window || !event || !event->type) { return (false); }
+    if (window->eventQueue.count >= 1024) { return (false); }
+
+    /* Push the event to the end of the queue... */
+    window->eventQueue.queue[window->eventQueue.count++] = *event;
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_popEvent(t_window window, t_event *result) {
+    /* Safety checks... */
+    if (!window || !result) { return (false); }
+    if (!window->eventQueue.count) { return (false); }
+
+    /* Pop an event from the start of the queue... */
+    memcpy(result, &window->eventQueue.queue[0], sizeof(t_event));
+
+    /* ...and move all the previous events by one backwards (with setting the last element to 'none'). */
+    memmove(&window->eventQueue.queue[0], &window->eventQueue.queue[1], window->eventQueue.count-- * sizeof(t_event));
+    memset(&window->eventQueue.queue[window->eventQueue.count], 0, sizeof(t_event));
+
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_flushEvent(t_window);
+
+/* MODULE: Time */
+
+LIBWINDOW_API uint64_t  lw_getTime(void) {
+    SYSTEMTIME  systemtime;
+
+    GetSystemTime(&systemtime);
+    return (systemtime.wMilliseconds);
+}
+
+LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
+    uint64_t    t;
+
+    t = lw_getTime();
+    while ((lw_getTime() - t) < ms);
+
+    return (true);
+}
+
+
+
+/* SECTION: Internal API
+ * * * * * * * * * * * */
+
+/* MODULE: Window */
+
+static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    LRESULT     result;
+    t_window    window;
+
+    result = 0;
+    window = 0;
+    if (uMsg == WM_CREATE) {
+        CREATESTRUCT    *pCreateStruct;
+
+        pCreateStruct = (CREATESTRUCT *) lParam;
+        window = (t_window) pCreateStruct->lpCreateParams;
+        SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR) window);
+    }
+    else {
+        LONG_PTR    lPtr;
+
+        lPtr = GetWindowLongPtr(hWnd, GWLP_USERDATA);
+        window = (t_window) lPtr;
+    }
+
+    switch (uMsg) {
+        case (WM_CLOSE):
+        case (WM_DESTROY): {
+            t_event event;
+
+            event = (t_event) {
+                .type = LW_EVENT_QUIT,
+                .quit = (t_quitEvent) {
+                    .type = LW_EVENT_QUIT,
+                    .time = lw_getTime(),
+                    .window = window,
+                }
+            };
+            lw_pushEvent(window, &event);
+        } break;
+
+        default: { result = DefWindowProc(window->win32.hwnd, uMsg, wParam, lParam); } break;
+    }
+    return (result);
+}
 
 #  endif /* LIBWINDOW_WIN32 */
 # endif /* LIBWINDOW_IMPLEMENTATION */
