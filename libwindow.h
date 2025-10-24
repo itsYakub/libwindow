@@ -756,7 +756,7 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
             lw_pushEvent(window, &event);
         } break;
 
-        default: { result = DefWindowProc(window->win32.hwnd, uMsg, wParam, lParam); } break;
+        default: { result = DefWindowProc(hWnd, uMsg, wParam, lParam); } break;
     }
     return (result);
 }
