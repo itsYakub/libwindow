@@ -23,6 +23,22 @@
 
 /* MODULE: Window */
 
+enum {
+    LW_PROP_NONE = 0,
+
+    LW_PROP_X11_DISPLAY,
+    LW_PROP_X11_ROOT_ID,
+    LW_PROP_X11_WINDOW_ID,
+    LW_PROP_X11_SCREEN_ID,
+
+    LW_PROP_WIN32_HWND,
+    LW_PROP_WIN32_INSTANCE,
+    LW_PROP_WIN32_HDC,
+
+    /* ... */
+    LW_PROP_COUNT
+};
+
 typedef struct s_window     *t_window;
 
 /* MODULE: Event */
@@ -118,6 +134,8 @@ LIBWINDOW_API bool  lw_setWindowPosition(t_window, const size_t, const size_t);
 LIBWINDOW_API bool  lw_getWindowTitle(t_window, char *, const size_t);
 LIBWINDOW_API bool  lw_setWindowTitle(t_window, const char *);
 
+LIBWINDOW_API void  *lw_getWindowProp(t_window, const uint64_t);
+
 /* MODULE: Event */
 
 LIBWINDOW_API bool  lw_pollEvents(t_window, t_event *);
@@ -133,16 +151,25 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 # if defined LIBWINDOW_IMPLEMENTATION
 #  include <stdlib.h>
 #  include <string.h>
-#
-#  if defined (LIBWINDOW_X11)
+#  if defined (__linux__)
 #   include <unistd.h>
 #   include <sys/time.h>
+#  endif /* __linux__ */
 #
+#  /* Platform-specific headers... */
+#  if defined (LIBWINDOW_X11)
 #   include <X11/X.h>
 #   include <X11/Xlib.h>
 #   include <X11/Xatom.h>
 #   include <X11/Xutil.h>
 #   include <X11/XKBlib.h>
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+#   include <windows.h>
+#  endif /* LIBWINDOW_WIN32 */
+#
+#  /* Platform-specific types... */
+#  if defined (LIBWINDOW_X11)
 
 /* SECTION: Types
  * * * * * * * * */
@@ -153,7 +180,8 @@ struct s_window {
     struct {
         Display *display;
         XID     root_id,
-                window_id;
+                window_id,
+                screen_id;
     } xlib;
 
     struct {
@@ -170,6 +198,24 @@ struct s_window {
         size_t  count;
     } eventQueue;
 };
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+struct s_window {
+    /* win32 stuff goes here... */
+
+    struct {
+        /* Let's predefine the size of the queue to 1024, just for now */
+        t_event queue[1024];
+        size_t  count;
+    } eventQueue;
+};
+
+#  endif /* LIBWINDOW_WIN32 */
+#
+#  /* Platform-specific implementation... */
+#  if defined (LIBWINDOW_X11)
 
 /* SECTION: Internal API
  * * * * * * * * * * * */
@@ -197,12 +243,13 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
     window->xlib.root_id = XDefaultRootWindow(window->xlib.display);
     if (!window->xlib.root_id) { return (false); }
 
-    if (!XMatchVisualInfo(window->xlib.display, DefaultScreen(window->xlib.display), 24, TrueColor, &window->xutil.visual)) { return (false); } 
+    window->xlib.screen_id = XDefaultScreen(window->xlib.display);
+
+    if (!XMatchVisualInfo(window->xlib.display, window->xlib.screen_id, 24, TrueColor, &window->xutil.visual)) { return (false); } 
 
     attr = (XSetWindowAttributes) { 0 };
     attr.background_pixel = 0;
     attr.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | ExposureMask | ClientMessage;
-
     attr.colormap = XCreateColormap(window->xlib.display, window->xlib.root_id, window->xutil.visual.visual, AllocNone);
     if (!attr.colormap) { return (false); }
 
@@ -326,6 +373,22 @@ LIBWINDOW_API bool  lw_setWindowTitle(t_window window, const char *title) {
     return (true);
 }
 
+LIBWINDOW_API void  *lw_getWindowProp(t_window window, const uint64_t prop) {
+    /* Safety check... */
+    if (!window) { return (0); }
+
+    switch (prop) {
+        case (LW_PROP_X11_DISPLAY): { return (window->xlib.display); }
+        case (LW_PROP_X11_ROOT_ID): { return (&window->xlib.root_id); }
+        case (LW_PROP_X11_WINDOW_ID): { return (&window->xlib.window_id); }
+        case (LW_PROP_X11_SCREEN_ID): { return (&window->xlib.screen_id); }
+    }
+
+    return (0);
+}
+
+
+
 /* MODULE: Event */
 
 LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
@@ -373,6 +436,8 @@ LIBWINDOW_API bool  lw_flushEvent(t_window window) {
     return (true);
 }
 
+
+
 /* MODULE: Time */
 
 LIBWINDOW_API uint64_t  lw_getTime(void) {
@@ -390,6 +455,8 @@ LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
 
     return (true);
 }
+
+
 
 /* SECTION: Internal API
  * * * * * * * * * * * */
@@ -504,5 +571,10 @@ static bool lw_pollEventsPlatform(t_window window) {
 }
 
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+/* win32 API goes here... */
+
+#  endif /* LIBWINDOW_WIN32 */
 # endif /* LIBWINDOW_IMPLEMENTATION */
 #endif /* _libwindow_h_ */

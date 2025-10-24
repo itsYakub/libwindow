@@ -7,11 +7,6 @@ int main() {
     bool        exit;
 
     lw_createWindow(&window, 800, 600, "libwindow - hello, x11!");
-    
-    printf("Display: %p\n", lw_getWindowProp(window, LW_PROP_X11_DISPLAY));
-    printf("Root ID: %d\n", *((uint32_t *) lw_getWindowProp(window, LW_PROP_X11_ROOT_ID)));
-    printf("Window ID: %d\n", *((uint32_t *) lw_getWindowProp(window, LW_PROP_X11_WINDOW_ID)));
-    printf("Screen ID: %d\n", *((uint32_t *) lw_getWindowProp(window, LW_PROP_X11_SCREEN_ID)));
 
     exit = false;
     while (!exit) {

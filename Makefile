@@ -10,5 +10,6 @@ TARGET		= $(MK_ROOT)$(MK_NAME).h
 
 examples :
 	make -C $(MK_ROOT)examples/x11
+	make -C $(MK_ROOT)examples/win32
 
 # ========
