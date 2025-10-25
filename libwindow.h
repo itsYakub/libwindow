@@ -619,7 +619,7 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
 LIBWINDOW_API bool  lw_destroyWindow(t_window window) {
     /* Safety check... */
     if (!window) { return (false); }
-
+    
     PostQuitMessage(0);
     free(window);
     return (true);
@@ -660,7 +660,11 @@ LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
     if (lw_popEvent(window, event)) { return (true); }
 
     /* Step 2: Polling events from platform's queue... */
-    while (GetMessage(&msg, 0, 0, 0)) {
+    /* TODO:
+     *  Redesign the event loop so the 'while()' condition breaks when there's no event in the queue...
+     *  Docs: https://learn.microsoft.com/en-us/windows/win32/learnwin32/window-messages
+     * */
+    while (GetMessage(&msg, window->win32.hwnd, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -720,24 +724,28 @@ LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
 
 /* MODULE: Window */
 
+#include <stdio.h>
+
 static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    LRESULT     result;
     t_window    window;
 
-    result = 0;
     window = 0;
-    if (uMsg == WM_CREATE) {
-        CREATESTRUCT    *pCreateStruct;
+    switch (uMsg) {
+        case (WM_CREATE):
+        case (WM_NCCREATE): {
+            CREATESTRUCT    *pCreateStruct;
 
-        pCreateStruct = (CREATESTRUCT *) lParam;
-        window = (t_window) pCreateStruct->lpCreateParams;
-        SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR) window);
-    }
-    else {
-        LONG_PTR    lPtr;
+            pCreateStruct = (CREATESTRUCT *) lParam;
+            window = (t_window) pCreateStruct->lpCreateParams;
+            SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR) window);
+        } break;
 
-        lPtr = GetWindowLongPtr(hWnd, GWLP_USERDATA);
-        window = (t_window) lPtr;
+        default: {
+            LONG_PTR    lPtr;
+
+            lPtr = GetWindowLongPtr(hWnd, GWLP_USERDATA);
+            window = (t_window) lPtr;
+        } break;
     }
 
     switch (uMsg) {
@@ -754,11 +762,9 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
                 }
             };
             lw_pushEvent(window, &event);
-        } break;
-
-        default: { result = DefWindowProc(hWnd, uMsg, wParam, lParam); } break;
+        } return (0);
     }
-    return (result);
+    return (DefWindowProc(hWnd, uMsg, wParam, lParam));
 }
 
 #  endif /* LIBWINDOW_WIN32 */
