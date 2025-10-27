@@ -660,11 +660,7 @@ LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
     if (lw_popEvent(window, event)) { return (true); }
 
     /* Step 2: Polling events from platform's queue... */
-    /* TODO:
-     *  Redesign the event loop so the 'while()' condition breaks when there's no event in the queue...
-     *  Docs: https://learn.microsoft.com/en-us/windows/win32/learnwin32/window-messages
-     * */
-    while (GetMessage(&msg, window->win32.hwnd, 0, 0)) {
+    while (PeekMessage(&msg, window->win32.hwnd, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
