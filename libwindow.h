@@ -33,7 +33,6 @@ enum {
 
     LW_PROP_WIN32_HWND,
     LW_PROP_WIN32_HINSTANCE,
-    LW_PROP_WIN32_HDC,
 
     /* ... */
     LW_PROP_COUNT
@@ -92,7 +91,7 @@ typedef struct s_buttonEvent    t_buttonEvent;
 typedef struct s_motionEvent    t_motionEvent;
 
 struct s_event {
-    uint32_t        type;
+    uint32_t            type;
     union {
         t_quitEvent     quit;
         t_keyEvent      key;
@@ -148,8 +147,7 @@ LIBWINDOW_API bool  lw_flushEvent(t_window);
 LIBWINDOW_API uint64_t  lw_getTime(void);
 LIBWINDOW_API bool      lw_waitTime(uint64_t);
 
-// #define LIBWINDOW_IMPLEMENTATION
-// #define LIBWINDOW_WIN32
+
 
 # if defined LIBWINDOW_IMPLEMENTATION
 #  include <stdlib.h>
@@ -170,6 +168,7 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
 #   include <windows.h>
+#   include <windowsx.h>
 #  endif /* LIBWINDOW_WIN32 */
 
 
@@ -343,6 +342,12 @@ LIBWINDOW_API bool  lw_getWindowSize(t_window window, size_t *width, size_t *hei
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
 
+    RECT    area;
+
+    if (!GetClientRect(window->win32.hwnd, &area)) { return (false); }
+    if (width) { *width = area.right; }
+    if (height) { *height = area.bottom; }
+
 #  endif /* LIBWINDOW_WIN32 */
     
     return (true);
@@ -358,6 +363,9 @@ LIBWINDOW_API bool  lw_setWindowSize(t_window window, const size_t width, const 
 
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
+
+    (void) width;
+    (void) height;
 
 #  endif /* LIBWINDOW_WIN32 */
 
@@ -382,6 +390,9 @@ LIBWINDOW_API bool  lw_setWindowMinSize(t_window window, const size_t width, con
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
 
+    (void) width;
+    (void) height;
+
 #  endif /* LIBWINDOW_WIN32 */
 
     return (true);
@@ -405,6 +416,9 @@ LIBWINDOW_API bool  lw_setWindowMaxSize(t_window window, const size_t width, con
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
 
+    (void) width;
+    (void) height;
+
 #  endif /* LIBWINDOW_WIN32 */
 
     return (true);
@@ -417,12 +431,19 @@ LIBWINDOW_API bool  lw_getWindowPosition(t_window window, size_t *x, size_t *y) 
 #  if defined (LIBWINDOW_X11)
     
     XWindowAttributes   attr;
+
     if (!XGetWindowAttributes(window->xlib.display, window->xlib.window_id, &attr)) { return (false); }
     if (x) { *x = attr.x; }
     if (y) { *y = attr.y; }
 
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
+
+    RECT    area;
+
+    if (!GetClientRect(window->win32.hwnd, &area)) { return (false); }
+    if (x) { *x = area.left; }
+    if (y) { *y = area.top; }
 
 #  endif /* LIBWINDOW_WIN32 */
 
@@ -447,6 +468,9 @@ LIBWINDOW_API bool  lw_setWindowPosition(t_window window, const size_t x, const 
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
 
+    (void) x;
+    (void) y;
+
 #  endif /* LIBWINDOW_WIN32 */
 
     return (true);
@@ -468,6 +492,9 @@ LIBWINDOW_API bool  lw_getWindowTitle(t_window window, char *title, const size_t
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
 
+    (void) title;
+    (void) size;
+
 #  endif /* LIBWINDOW_WIN32 */
 
     return (true);
@@ -483,6 +510,8 @@ LIBWINDOW_API bool  lw_setWindowTitle(t_window window, const char *title) {
 
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
+
+    (void) title;
 
 #  endif /* LIBWINDOW_WIN32 */
 
@@ -766,6 +795,110 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
             };
             lw_pushEvent(window, &event);
         } return (0);
+
+        case (WM_KEYDOWN):
+        case (WM_SYSKEYDOWN): {
+            t_event     event;
+            uint32_t    key;
+
+            key = wParam;
+            event = (t_event) {
+                .type = LW_EVENT_KEY,
+                .key = (t_keyEvent) {
+                    .type = LW_EVENT_KEY,
+                    .time = lw_getTime(),
+                    .window = window,
+                    .key = key, /* temporary solution (until I implement a keymap map) */
+                    .state = true,
+                }
+            };
+            lw_pushEvent(window, &event);
+        } break;
+
+        case (WM_KEYUP):
+        case (WM_SYSKEYUP): {
+            t_event     event;
+            uint32_t    key;
+
+            key = wParam;
+            event = (t_event) {
+                .type = LW_EVENT_KEY,
+                .key = (t_keyEvent) {
+                    .type = LW_EVENT_KEY,
+                    .time = lw_getTime(),
+                    .window = window,
+                    .key = key, /* temporary solution (until I implement a keymap map) */
+                    .state = false,
+                }
+            };
+            lw_pushEvent(window, &event);
+        } break;
+
+        case (WM_LBUTTONDOWN):
+        case (WM_RBUTTONDOWN):
+        case (WM_MBUTTONDOWN): {
+            t_event event;
+            uint8_t button;
+            
+            if (uMsg == WM_LBUTTONDOWN) { button = LW_BUTTON_LEFT; }
+            else if (uMsg == WM_MBUTTONDOWN) { button = LW_BUTTON_MIDDLE; }
+            else if (uMsg == WM_RBUTTONDOWN) { button = LW_BUTTON_RIGHT; }
+            event = (t_event) {
+                .type = LW_EVENT_BUTTON,
+                .button = (t_buttonEvent) {
+                    .type = LW_EVENT_BUTTON,
+                    .time = lw_getTime(),
+                    .window = window,
+                    .button = button,
+                    .x = (uint32_t) GET_X_LPARAM(lParam),
+                    .y = (uint32_t) GET_Y_LPARAM(lParam),
+                    .state = true,
+                }
+            };
+            lw_pushEvent(window, &event);
+        } break;
+        
+        case (WM_LBUTTONUP):
+        case (WM_RBUTTONUP):
+        case (WM_MBUTTONUP): {
+            t_event event;
+            uint8_t button;
+            
+            if (uMsg == WM_LBUTTONDOWN) { button = LW_BUTTON_LEFT; }
+            else if (uMsg == WM_MBUTTONDOWN) { button = LW_BUTTON_MIDDLE; }
+            else if (uMsg == WM_RBUTTONDOWN) { button = LW_BUTTON_RIGHT; }
+            event = (t_event) {
+                .type = LW_EVENT_BUTTON,
+                .button = (t_buttonEvent) {
+                    .type = LW_EVENT_BUTTON,
+                    .time = lw_getTime(),
+                    .window = window,
+                    .button = button,
+                    .x = (uint32_t) GET_X_LPARAM(lParam),
+                    .y = (uint32_t) GET_Y_LPARAM(lParam),
+                    .state = false,
+                }
+            };
+            lw_pushEvent(window, &event);
+        } break;
+
+        case (WM_MOUSEMOVE): {
+            t_event event;
+            
+            event = (t_event) {
+                .type = LW_EVENT_MOTION,
+                .motion = (t_motionEvent) {
+                    .type = LW_EVENT_MOTION,
+                    .time = lw_getTime(),
+                    .window = window,
+                    .x = (uint32_t) GET_X_LPARAM(lParam),
+                    .xrel = (uint32_t) GET_X_LPARAM(lParam),
+                    .y = (uint32_t) GET_Y_LPARAM(lParam),
+                    .yrel = (uint32_t) GET_Y_LPARAM(lParam),
+                }
+            };
+            lw_pushEvent(window, &event);
+        } break;
     }
     return (DefWindowProc(hWnd, uMsg, wParam, lParam));
 }
