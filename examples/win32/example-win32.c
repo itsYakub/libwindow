@@ -1,3 +1,5 @@
+#define LIBWINDOW_WIN32
+#define LIBWINDOW_IMPLEMENTATION
 #include "./../../libwindow.h"
 
 int main() {

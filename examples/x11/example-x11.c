@@ -1,6 +1,6 @@
+#define LIBWINDOW_X11
+#define LIBWINDOW_IMPLEMENTATION
 #include "./../../libwindow.h"
-
-#include <stdio.h>
 
 int main() {
     t_window    window;
