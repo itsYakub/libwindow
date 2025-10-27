@@ -171,9 +171,8 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 #  if defined (LIBWINDOW_WIN32)
 #   include <windows.h>
 #  endif /* LIBWINDOW_WIN32 */
-#
-#  /* Platform-specific types... */
-#  if defined (LIBWINDOW_X11)
+
+
 
 /* SECTION: Types
  * * * * * * * * */
@@ -181,6 +180,9 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 /* MODULE: Window */
 
 struct s_window {
+
+#  if defined (LIBWINDOW_X11)
+
     struct {
         Display *display;
         XID     root_id,
@@ -196,23 +198,17 @@ struct s_window {
         XID     wm_delete_window;
     } xatom;
 
-    struct {
-        /* Let's predefine the size of the queue to 1024, just for now */
-        t_event queue[1024];
-        size_t  count;
-    } eventQueue;
-};
-
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
-
-struct s_window {
+    
     struct {
         HANDLE      hinstance;
         HANDLE      hwnd;
         WNDCLASS    wndclass;
     } win32;
 
+#  endif /* LIBWINDOW_WIN32 */
+
     struct {
         /* Let's predefine the size of the queue to 1024, just for now */
         t_event queue[1024];
@@ -220,17 +216,23 @@ struct s_window {
     } eventQueue;
 };
 
-#  endif /* LIBWINDOW_WIN32 */
-#
-#  /* Platform-specific implementation... */
-#  if defined (LIBWINDOW_X11)
+
 
 /* SECTION: Internal API
  * * * * * * * * * * * */
 
 /* MODULE: Event */
 
+#  if defined (LIBWINDOW_X11)
+
 static bool lw_pollEventsPlatform(t_window);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
+
+#  endif /* LIBWINDOW_WIN32 */
 
 
 
@@ -240,11 +242,14 @@ static bool lw_pollEventsPlatform(t_window);
 /* MODULE: Window */
 
 LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const size_t height, const char *title) {
-    XSetWindowAttributes    attr;
-    t_window                window;
+    t_window    window;
 
     window = (t_window) calloc(1, sizeof(struct s_window));
     if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+
+    XSetWindowAttributes    attr;
 
     window->xlib.display = XOpenDisplay(0);
     if (!window->xlib.display) { return (false); }
@@ -275,6 +280,29 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
     XStoreName(window->xlib.display, window->xlib.window_id, title);
     XMapWindow(window->xlib.display, window->xlib.window_id);
 
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+    
+    STARTUPINFO startupinfo;
+
+    window->win32.hinstance = GetModuleHandle(0);
+    if (!window->win32.hinstance) { return (false); }
+
+    window->win32.wndclass = (WNDCLASS) { 0 };
+    window->win32.wndclass.style = CS_VREDRAW | CS_HREDRAW | CS_OWNDC;
+    window->win32.wndclass.lpfnWndProc = WindowProc;
+    window->win32.wndclass.hInstance = window->win32.hinstance;
+    window->win32.wndclass.lpszClassName = title;
+    if (!RegisterClass(&window->win32.wndclass)) { return (false); }
+
+    window->win32.hwnd = CreateWindowEx(0, window->win32.wndclass.lpszClassName, title, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, window->win32.hinstance, window);
+    if (!window->win32.hwnd) { return (false); }
+
+    GetStartupInfo(&startupinfo);
+    ShowWindow(window->win32.hwnd, startupinfo.wShowWindow);
+
+#  endif /* LIBWINDOW_WIN32 */
+
     *result = window;
     return (true);
 }
@@ -283,104 +311,181 @@ LIBWINDOW_API bool  lw_destroyWindow(t_window window) {
     /* Safety check... */
     if (!window) { return (false); }
 
+#  if defined (LIBWINDOW_X11)
+
     /* memory-safe x11 disposal... */
     if (window->xlib.window_id) { XDestroyWindow(window->xlib.display, window->xlib.window_id), window->xlib.window_id = 0; }
     if (window->xlib.display)   { XCloseDisplay(window->xlib.display), window->xlib.display = 0; }
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+    
+    PostQuitMessage(0);
+
+#  endif /* LIBWINDOW_WIN32 */
 
     free(window);
     return (true);
 }
 
 LIBWINDOW_API bool  lw_getWindowSize(t_window window, size_t *width, size_t *height) {
-    XWindowAttributes   attr;
-
     /* Safety check... */
     if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+    
+    XWindowAttributes   attr;
+    
     if (!XGetWindowAttributes(window->xlib.display, window->xlib.window_id, &attr)) { return (false); }
     if (width) { *width = attr.width; }
     if (height) { *height = attr.height; }
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+    
     return (true);
 }
 
 LIBWINDOW_API bool  lw_setWindowSize(t_window window, const size_t width, const size_t height) {
     /* Safety check... */
     if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+
     if (!XResizeWindow(window->xlib.display, window->xlib.window_id, width, height)) { return (false); }
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+
     return (true);
 }
 
 LIBWINDOW_API bool  lw_setWindowMinSize(t_window window, const size_t width, const size_t height) {
-    XSizeHints  hints;
-    int64_t     supp;
-
     /* Safety check... */
     if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+
+    XSizeHints  hints;
+    int64_t     supp;
     
     XGetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints, &supp);
     hints.flags = PMinSize;
     hints.min_width = width > 0 ? width : 1;
     hints.min_height = height > 0 ? height : 1;
     XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+
     return (true);
 }
 
 LIBWINDOW_API bool  lw_setWindowMaxSize(t_window window, const size_t width, const size_t height) {
+    /* Safety check... */
+    if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+    
     XSizeHints  hints;
     int64_t     supp;
 
-    /* Safety check... */
-    if (!window) { return (false); }
-    
     XGetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints, &supp);
     hints.flags = PMaxSize;
     hints.max_width = width > 0 ? width : 1;
     hints.max_height = height > 0 ? height : 1;
     XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+
     return (true);
 }
 
 LIBWINDOW_API bool  lw_getWindowPosition(t_window window, size_t *x, size_t *y) {
-    XWindowAttributes   attr;
-
     /* Safety check... */
     if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+    
+    XWindowAttributes   attr;
     if (!XGetWindowAttributes(window->xlib.display, window->xlib.window_id, &attr)) { return (false); }
     if (x) { *x = attr.x; }
     if (y) { *y = attr.y; }
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+
     return (true);
 }
 
 LIBWINDOW_API bool  lw_setWindowPosition(t_window window, const size_t x, const size_t y) {
+    /* Safety check... */
+    if (!window) { return (false); } 
+
+#  if defined (LIBWINDOW_X11)
+    
     XSizeHints  hints;
     int64_t     supp;
 
-    /* Safety check... */
-    if (!window) { return (false); }
-    
     XGetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints, &supp);
     hints.flags = PPosition;
     hints.x = x;
     hints.y = y;
     XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+
     return (true);
 }
 
 LIBWINDOW_API bool  lw_getWindowTitle(t_window window, char *title, const size_t size) {
-    char    *fetch;
-
     /* Safety check... */
     if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+    
+    char    *fetch;
+
     if (!XFetchName(window->xlib.display, window->xlib.window_id, &fetch)) { return (false); }
     title = strncpy(title, fetch, size);
     title[size - 1] = 0;
     XFree(fetch);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+
     return (true);
 }
 
 LIBWINDOW_API bool  lw_setWindowTitle(t_window window, const char *title) {
     /* Safety check... */
     if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+    
     if (!XStoreName(window->xlib.display, window->xlib.window_id, title)) { return (false); }
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+
     return (true);
 }
 
@@ -389,16 +494,26 @@ LIBWINDOW_API void  *lw_getWindowProp(t_window window, const uint64_t prop) {
     if (!window) { return (0); }
 
     switch (prop) {
+
+#  if defined (LIBWINDOW_X11)
+    
         case (LW_PROP_X11_DISPLAY): { return (window->xlib.display); }
         case (LW_PROP_X11_ROOT_ID): { return (&window->xlib.root_id); }
         case (LW_PROP_X11_WINDOW_ID): { return (&window->xlib.window_id); }
         case (LW_PROP_X11_SCREEN_ID): { return (&window->xlib.screen_id); }
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+        
+        case (LW_PROP_WIN32_HWND): { return (window->win32.hwnd); }
+        case (LW_PROP_WIN32_HINSTANCE): { return (window->win32.hinstance); }
+
+#  endif /* LIBWINDOW_WIN32 */
+
     }
 
     return (0);
 }
-
-
 
 /* MODULE: Event */
 
@@ -410,7 +525,23 @@ LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
     if (lw_popEvent(window, event)) { return (true); }
 
     /* Step 2: Polling events from platform's queue... */
+
+#  if defined (LIBWINDOW_X11)
+
     lw_pollEventsPlatform(window);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+    
+    MSG msg;
+        
+    while (PeekMessage(&msg, window->win32.hwnd, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+#  endif /* LIBWINDOW_WIN32 */
+
     memset(event, 0, sizeof(t_event));
     return (false);
 }
@@ -443,19 +574,40 @@ LIBWINDOW_API bool  lw_popEvent(t_window window, t_event *result) {
 LIBWINDOW_API bool  lw_flushEvent(t_window window) {
     /* Safety check... */
     if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+    
     if (!XFlush(window->xlib.display)) { return (false); }
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+#  endif /* LIBWINDOW_WIN32 */
+        
     return (true);
 }
-
-
 
 /* MODULE: Time */
 
 LIBWINDOW_API uint64_t  lw_getTime(void) {
-    struct timeval  time;
 
+#  if defined (LIBWINDOW_X11)
+
+    struct timeval  time;
+    
     gettimeofday(&time, 0);
     return (time.tv_sec * 1000 + time.tv_usec / 1000);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+    
+    SYSTEMTIME  systemtime;
+
+    GetSystemTime(&systemtime);
+    return (systemtime.wMilliseconds);
+
+#  endif /* LIBWINDOW_WIN32 */
+        
 }
 
 LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
@@ -473,6 +625,8 @@ LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
  * * * * * * * * * * * */
 
 /* MODULE: Event */
+
+#  if defined (LIBWINDOW_X11)
 
 static bool lw_pollEventsPlatform(t_window window) {
     XEvent  xevent;
@@ -574,154 +728,7 @@ static bool lw_pollEventsPlatform(t_window window) {
 
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
-
-/* SECTION: Internal API
- * * * * * * * * * * * */
-
-/* MODULE: Window */
-
-static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
-
-
-
-/* SECTION: API
- * * * * * * * */
-
-/* MODULE: Window */
-
-LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const size_t height, const char *title) {
-    STARTUPINFO startupinfo;
-    t_window    window;
-
-    window = (t_window) calloc(1, sizeof(struct s_window));
-    if (!window) { return (false); }
-
-    window->win32.hinstance = GetModuleHandle(0);
-    if (!window->win32.hinstance) { return (false); }
-
-    window->win32.wndclass = (WNDCLASS) { 0 };
-    window->win32.wndclass.style = CS_VREDRAW | CS_HREDRAW | CS_OWNDC;
-    window->win32.wndclass.lpfnWndProc = WindowProc;
-    window->win32.wndclass.hInstance = window->win32.hinstance;
-    window->win32.wndclass.lpszClassName = title;
-    if (!RegisterClass(&window->win32.wndclass)) { return (false); }
-
-    window->win32.hwnd = CreateWindowEx(0, window->win32.wndclass.lpszClassName, title, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, window->win32.hinstance, window);
-    if (!window->win32.hwnd) { return (false); }
-
-    GetStartupInfo(&startupinfo);
-    ShowWindow(window->win32.hwnd, startupinfo.wShowWindow);
-
-    *result = window;
-    return (true);
-}
-
-LIBWINDOW_API bool  lw_destroyWindow(t_window window) {
-    /* Safety check... */
-    if (!window) { return (false); }
     
-    PostQuitMessage(0);
-    free(window);
-    return (true);
-}
-
-LIBWINDOW_API bool  lw_getWindowSize(t_window, size_t *, size_t *);
-LIBWINDOW_API bool  lw_setWindowSize(t_window, const size_t, const size_t);
-LIBWINDOW_API bool  lw_setWindowMinSize(t_window, const size_t, const size_t);
-LIBWINDOW_API bool  lw_setWindowMaxSize(t_window, const size_t, const size_t);
-
-LIBWINDOW_API bool  lw_getWindowPosition(t_window, size_t *, size_t *);
-LIBWINDOW_API bool  lw_setWindowPosition(t_window, const size_t, const size_t);
-
-LIBWINDOW_API bool  lw_getWindowTitle(t_window, char *, const size_t);
-LIBWINDOW_API bool  lw_setWindowTitle(t_window, const char *);
-
-LIBWINDOW_API void  *lw_getWindowProp(t_window window, const uint64_t prop) {
-    /* Safety check... */
-    if (!window) { return (0); }
-
-    switch (prop) {
-        case (LW_PROP_WIN32_HWND): { return (window->win32.hwnd); }
-        case (LW_PROP_WIN32_HINSTANCE): { return (window->win32.hinstance); }
-    }
-
-    return (0);
-}
-
-/* MODULE: Event */
-
-LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
-    MSG msg;
-
-    /* Safety check... */
-    if (!window) { return (false); }
-
-    /* Step 1: Polling events from 'window' queue... */
-    if (lw_popEvent(window, event)) { return (true); }
-
-    /* Step 2: Polling events from platform's queue... */
-    while (PeekMessage(&msg, window->win32.hwnd, 0, 0, PM_REMOVE)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    memset(event, 0, sizeof(t_event));
-    return (false);
-}
-
-LIBWINDOW_API bool  lw_pushEvent(t_window window, t_event *event) {
-    /* Safety checks... */
-    if (!window || !event || !event->type) { return (false); }
-    if (window->eventQueue.count >= 1024) { return (false); }
-
-    /* Push the event to the end of the queue... */
-    window->eventQueue.queue[window->eventQueue.count++] = *event;
-    return (true);
-}
-
-LIBWINDOW_API bool  lw_popEvent(t_window window, t_event *result) {
-    /* Safety checks... */
-    if (!window || !result) { return (false); }
-    if (!window->eventQueue.count) { return (false); }
-
-    /* Pop an event from the start of the queue... */
-    memcpy(result, &window->eventQueue.queue[0], sizeof(t_event));
-
-    /* ...and move all the previous events by one backwards (with setting the last element to 'none'). */
-    memmove(&window->eventQueue.queue[0], &window->eventQueue.queue[1], window->eventQueue.count-- * sizeof(t_event));
-    memset(&window->eventQueue.queue[window->eventQueue.count], 0, sizeof(t_event));
-
-    return (true);
-}
-
-LIBWINDOW_API bool  lw_flushEvent(t_window);
-
-/* MODULE: Time */
-
-LIBWINDOW_API uint64_t  lw_getTime(void) {
-    SYSTEMTIME  systemtime;
-
-    GetSystemTime(&systemtime);
-    return (systemtime.wMilliseconds);
-}
-
-LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
-    uint64_t    t;
-
-    t = lw_getTime();
-    while ((lw_getTime() - t) < ms);
-
-    return (true);
-}
-
-
-
-/* SECTION: Internal API
- * * * * * * * * * * * */
-
-/* MODULE: Window */
-
-#include <stdio.h>
-
 static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     t_window    window;
 
