@@ -2,6 +2,8 @@
 #define LIBWINDOW_IMPLEMENTATION
 #include "./../../libwindow.h"
 
+#include <stdio.h>
+
 int main() {
     t_window    window;
     bool        exit;
@@ -15,6 +17,10 @@ int main() {
         while (lw_pollEvents(window, &event)) {
             switch (event.type) {
                 case (LW_EVENT_QUIT): { exit = true; } break;
+
+                case (LW_EVENT_KEY): {
+                    printf("%d\n", event.key.key);
+                } break;
             }
         }
     }

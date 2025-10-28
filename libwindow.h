@@ -180,9 +180,9 @@ enum {
     LW_KEY_X                    = 0x0058,
     LW_KEY_Y                    = 0x0059,
     LW_KEY_Z                    = 0x005a,
-    LW_KEY_OPENBRACE            = 0x005b,
+    LW_KEY_BRACE_OPEN           = 0x005b,
     LW_KEY_BACKSLASH            = 0x005c,
-    LW_KEY_CLOSEBRACE           = 0x005d,
+    LW_KEY_BRACE_CLOSE          = 0x005d,
     LW_KEY_CARET                = 0x005e,
     LW_KEY_UNDERSCORE           = 0x005f,
     LW_KEY_GRAVE                = 0x0060,
@@ -405,6 +405,347 @@ static bool lw_pollEventsPlatform(t_window);
 static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
 
 #  endif /* LIBWINDOW_WIN32 */
+
+/* MODULE: Input */
+
+static bool lw_inputPlatformToLibrary(const uint64_t, uint64_t *);
+
+/* SECTION: Global Variables
+ * * * * * * * * * * * * * */
+
+/* MODULE: Input */
+
+static const struct s_keymap {
+    uint64_t    library;
+    uint64_t    platform;
+} g_keymap[] = {
+    { LW_KEY_NONE,          0 },
+
+#  if defined (LIBWINDOW_X11)
+
+    { LW_KEY_SPACE,         XK_space },
+    { LW_KEY_EXCLAM,        XK_exclam },
+    { LW_KEY_DQUOTE,        XK_quotedbl },
+    { LW_KEY_HASH,          XK_numbersign },
+    { LW_KEY_DOLLAR,        XK_dollar },
+    { LW_KEY_PERCENT,       XK_percent },
+    { LW_KEY_AMPERSAND,     XK_ampersand },
+    { LW_KEY_SQUOTE,        XK_apostrophe },
+    { LW_KEY_PAREN_OPEN,    XK_parenleft },
+    { LW_KEY_PAREN_CLOSE,   XK_parenright },
+    { LW_KEY_ASTERISK,      XK_asterisk },
+    { LW_KEY_PLUS,          XK_plus },
+    { LW_KEY_COMMA,         XK_comma },
+    { LW_KEY_DASH,          XK_minus },
+    { LW_KEY_PERIOD,        XK_period },
+    { LW_KEY_SLASH,         XK_slash },
+    { LW_KEY_0,             XK_0 },
+    { LW_KEY_1,             XK_1 },
+    { LW_KEY_2,             XK_2 },
+    { LW_KEY_3,             XK_3 },
+    { LW_KEY_4,             XK_4 },
+    { LW_KEY_5,             XK_5 },
+    { LW_KEY_6,             XK_6 },
+    { LW_KEY_7,             XK_7 },
+    { LW_KEY_8,             XK_8 },
+    { LW_KEY_9,             XK_9 },
+    { LW_KEY_COLON,         XK_colon },
+    { LW_KEY_SEMICOLON,     XK_semicolon },
+    { LW_KEY_ANGLE_OPEN,    XK_less },
+    { LW_KEY_EQUAL,         XK_equal },
+    { LW_KEY_ANGLE_CLOSE,   XK_greater },
+    { LW_KEY_QUESTION,      XK_underscore },
+    { LW_KEY_AT,            XK_at },
+    { LW_KEY_A,             XK_A },
+    { LW_KEY_B,             XK_B },
+    { LW_KEY_C,             XK_C },
+    { LW_KEY_D,             XK_D },
+    { LW_KEY_E,             XK_E },
+    { LW_KEY_F,             XK_F },
+    { LW_KEY_G,             XK_G },
+    { LW_KEY_H,             XK_H },
+    { LW_KEY_I,             XK_I },
+    { LW_KEY_J,             XK_J },
+    { LW_KEY_K,             XK_K },
+    { LW_KEY_L,             XK_L },
+    { LW_KEY_M,             XK_M },
+    { LW_KEY_N,             XK_N },
+    { LW_KEY_O,             XK_O },
+    { LW_KEY_P,             XK_P },
+    { LW_KEY_Q,             XK_Q },
+    { LW_KEY_R,             XK_R },
+    { LW_KEY_S,             XK_S },
+    { LW_KEY_T,             XK_T },
+    { LW_KEY_U,             XK_U },
+    { LW_KEY_V,             XK_V },
+    { LW_KEY_W,             XK_W },
+    { LW_KEY_X,             XK_X },
+    { LW_KEY_Y,             XK_Y },
+    { LW_KEY_Z,             XK_Z },
+    { LW_KEY_BRACE_OPEN,    XK_bracketleft },
+    { LW_KEY_BACKSLASH,     XK_backslash },
+    { LW_KEY_BRACE_CLOSE,   XK_bracketright },
+    { LW_KEY_CARET,         XK_asciicircum },
+    { LW_KEY_UNDERSCORE,    XK_underscore },
+    { LW_KEY_GRAVE,         XK_grave },
+    { LW_KEY_a,             XK_a },
+    { LW_KEY_b,             XK_b },
+    { LW_KEY_c,             XK_c },
+    { LW_KEY_d,             XK_d },
+    { LW_KEY_e,             XK_e },
+    { LW_KEY_f,             XK_f },
+    { LW_KEY_g,             XK_g },
+    { LW_KEY_h,             XK_h },
+    { LW_KEY_i,             XK_i },
+    { LW_KEY_j,             XK_j },
+    { LW_KEY_k,             XK_k },
+    { LW_KEY_l,             XK_l },
+    { LW_KEY_m,             XK_m },
+    { LW_KEY_n,             XK_n },
+    { LW_KEY_o,             XK_o },
+    { LW_KEY_p,             XK_p },
+    { LW_KEY_q,             XK_q },
+    { LW_KEY_r,             XK_r },
+    { LW_KEY_s,             XK_s },
+    { LW_KEY_t,             XK_t },
+    { LW_KEY_u,             XK_u },
+    { LW_KEY_v,             XK_v },
+    { LW_KEY_w,             XK_w },
+    { LW_KEY_x,             XK_x },
+    { LW_KEY_y,             XK_y },
+    { LW_KEY_z,             XK_z },
+    { LW_KEY_CURLY_OPEN,    XK_braceleft },
+    { LW_KEY_BAR,           XK_bar },
+    { LW_KEY_CURLY_CLOSE,   XK_braceright },
+    { LW_KEY_TILDE,         XK_asciitilde },
+    { LW_KEY_ESCAPE,        XK_Escape },
+    { LW_KEY_ENTER,         XK_Return },
+    { LW_KEY_TAB,           XK_Tab },
+    { LW_KEY_BACKSPACE,     XK_BackSpace },
+    { LW_KEY_INSERT,        XK_Insert },
+    { LW_KEY_DELETE,        XK_Delete },
+    { LW_KEY_HOME,          XK_Home },
+    { LW_KEY_END,           XK_End },
+    { LW_KEY_PAGE_UP,       XK_Prior },
+    { LW_KEY_PAGE_DOWN,     XK_Next },
+    { LW_KEY_UP,            XK_Up },
+    { LW_KEY_DOWN,          XK_Down },
+    { LW_KEY_LEFT,          XK_Left },
+    { LW_KEY_RIGHT,         XK_Right },
+    { LW_KEY_CAPSLOCK,      XK_Caps_Lock },
+    { LW_KEY_SCROLLLOCK,    XK_Scroll_Lock },
+    { LW_KEY_PRINTSCREEN,   XK_Print },
+    { LW_KEY_F1,            XK_F1 },
+    { LW_KEY_F2,            XK_F2 },
+    { LW_KEY_F3,            XK_F3 },
+    { LW_KEY_F4,            XK_F4 },
+    { LW_KEY_F5,            XK_F5 },
+    { LW_KEY_F6,            XK_F6 },
+    { LW_KEY_F7,            XK_F7 },
+    { LW_KEY_F8,            XK_F8 },
+    { LW_KEY_F9,            XK_F9 },
+    { LW_KEY_F10,           XK_F10 },
+    { LW_KEY_F11,           XK_F11 },
+    { LW_KEY_F12,           XK_F12 },
+    { LW_KEY_F13,           XK_F13 },
+    { LW_KEY_F14,           XK_F14 },
+    { LW_KEY_F15,           XK_F15 },
+    { LW_KEY_F16,           XK_F16 },
+    { LW_KEY_F17,           XK_F17 },
+    { LW_KEY_F18,           XK_F18 },
+    { LW_KEY_F19,           XK_F19 },
+    { LW_KEY_F20,           XK_F20 },
+    { LW_KEY_F21,           XK_F21 },
+    { LW_KEY_F22,           XK_F22 },
+    { LW_KEY_F23,           XK_F23 },
+    { LW_KEY_F24,           XK_F24 },
+    { LW_KEY_F25,           XK_F25 },
+    { LW_KEY_SHIFT_LEFT,    XK_Shift_L },
+    { LW_KEY_SHIFT_RIGHT,   XK_Shift_R },
+    { LW_KEY_CTRL_LEFT,     XK_Control_L },
+    { LW_KEY_CTRL_RIGHT,    XK_Control_R },
+    { LW_KEY_ALT_LEFT,      XK_Alt_L },
+    { LW_KEY_ALT_RIGTH,     XK_Alt_R },
+    { LW_KEY_SUPER_LEFT,    XK_Super_L },
+    { LW_KEY_0_KP,          XK_KP_0 },
+    { LW_KEY_1_KP,          XK_KP_1 },
+    { LW_KEY_2_KP,          XK_KP_2 },
+    { LW_KEY_3_KP,          XK_KP_3 },
+    { LW_KEY_4_KP,          XK_KP_4 },
+    { LW_KEY_5_KP,          XK_KP_5 },
+    { LW_KEY_6_KP,          XK_KP_6 },
+    { LW_KEY_7_KP,          XK_KP_7 },
+    { LW_KEY_8_KP,          XK_KP_8 },
+    { LW_KEY_9_KP,          XK_KP_9 },
+    { LW_KEY_SUPER_RIGHT,   XK_Super_R },
+    { LW_KEY_NUMLOCK,       XK_Num_Lock },
+    { LW_KEY_MENU,          XK_Menu },
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+    
+    { LW_KEY_SPACE,         0x0020 },
+    { LW_KEY_EXCLAM,        0x0021 },
+    { LW_KEY_DQUOTE,        0x0022 },
+    { LW_KEY_HASH,          0x0023 },
+    { LW_KEY_DOLLAR,        0x0024 },
+    { LW_KEY_PERCENT,       0x0025 },
+    { LW_KEY_AMPERSAND,     0x0026 },
+    { LW_KEY_SQUOTE,        0x0027 },
+    { LW_KEY_PAREN_OPEN,    0x0028 },
+    { LW_KEY_PAREN_CLOSE,   0x0029 },
+    { LW_KEY_ASTERISK,      0x002a },
+    { LW_KEY_PLUS,          0x002b },
+    { LW_KEY_COMMA,         0x002c },
+    { LW_KEY_DASH,          0x002d },
+    { LW_KEY_PERIOD,        0x002e },
+    { LW_KEY_SLASH,         0x002f },
+    { LW_KEY_0,             0x0030 },
+    { LW_KEY_1,             0x0031 },
+    { LW_KEY_2,             0x0032 },
+    { LW_KEY_3,             0x0033 },
+    { LW_KEY_4,             0x0034 },
+    { LW_KEY_5,             0x0035 },
+    { LW_KEY_6,             0x0036 },
+    { LW_KEY_7,             0x0037 },
+    { LW_KEY_8,             0x0038 },
+    { LW_KEY_9,             0x0039 },
+    { LW_KEY_COLON,         0x003a },
+    { LW_KEY_SEMICOLON,     0x003b },
+    { LW_KEY_ANGLE_OPEN,    0x003c },
+    { LW_KEY_EQUAL,         0x003d },
+    { LW_KEY_ANGLE_CLOSE,   0x003e },
+    { LW_KEY_QUESTION,      0x003f },
+    { LW_KEY_AT,            0x0040 },
+    { LW_KEY_A,             0x0041 },
+    { LW_KEY_B,             0x0042 },
+    { LW_KEY_C,             0x0043 },
+    { LW_KEY_D,             0x0044 },
+    { LW_KEY_E,             0x0045 },
+    { LW_KEY_F,             0x0046 },
+    { LW_KEY_G,             0x0047 },
+    { LW_KEY_H,             0x0048 },
+    { LW_KEY_I,             0x0049 },
+    { LW_KEY_J,             0x004a },
+    { LW_KEY_K,             0x004b },
+    { LW_KEY_L,             0x004c },
+    { LW_KEY_M,             0x004d },
+    { LW_KEY_N,             0x004e },
+    { LW_KEY_O,             0x004f },
+    { LW_KEY_P,             0x0050 },
+    { LW_KEY_Q,             0x0051 },
+    { LW_KEY_R,             0x0052 },
+    { LW_KEY_S,             0x0053 },
+    { LW_KEY_T,             0x0054 },
+    { LW_KEY_U,             0x0055 },
+    { LW_KEY_V,             0x0056 },
+    { LW_KEY_W,             0x0057 },
+    { LW_KEY_X,             0x0058 },
+    { LW_KEY_Y,             0x0059 },
+    { LW_KEY_Z,             0x005a },
+    { LW_KEY_BRACE_OPEN,    0x005b },
+    { LW_KEY_BACKSLASH,     0x005c },
+    { LW_KEY_BRACE_CLOSE,   0x005d },
+    { LW_KEY_CARET,         0x005e },
+    { LW_KEY_UNDERSCORE,    0x005f },
+    { LW_KEY_GRAVE,         0x0060 },
+    { LW_KEY_a,             0x0061 },
+    { LW_KEY_b,             0x0062 },
+    { LW_KEY_c,             0x0063 },
+    { LW_KEY_d,             0x0064 },
+    { LW_KEY_e,             0x0065 },
+    { LW_KEY_f,             0x0066 },
+    { LW_KEY_g,             0x0067 },
+    { LW_KEY_h,             0x0068 },
+    { LW_KEY_i,             0x0069 },
+    { LW_KEY_j,             0x006a },
+    { LW_KEY_k,             0x006b },
+    { LW_KEY_l,             0x006c },
+    { LW_KEY_m,             0x006d },
+    { LW_KEY_n,             0x006e },
+    { LW_KEY_o,             0x006f },
+    { LW_KEY_p,             0x0070 },
+    { LW_KEY_q,             0x0071 },
+    { LW_KEY_r,             0x0072 },
+    { LW_KEY_s,             0x0073 },
+    { LW_KEY_t,             0x0074 },
+    { LW_KEY_u,             0x0075 },
+    { LW_KEY_v,             0x0076 },
+    { LW_KEY_w,             0x0077 },
+    { LW_KEY_x,             0x0078 },
+    { LW_KEY_y,             0x0079 },
+    { LW_KEY_z,             0x007a },
+    { LW_KEY_CURLY_OPEN,    0x007b },
+    { LW_KEY_BAR,           0x007c },
+    { LW_KEY_CURLY_CLOSE,   0x007d },
+    { LW_KEY_TILDE,         0x007e },
+    { LW_KEY_ESCAPE,        VK_ESCAPE },
+    { LW_KEY_ENTER,         VK_RETURN },
+    { LW_KEY_TAB,           VK_TAB },
+    { LW_KEY_BACKSPACE,     VK_BACK },
+    { LW_KEY_INSERT,        VK_INSERT },
+    { LW_KEY_DELETE,        VK_DELETE },
+    { LW_KEY_HOME,          VK_HOME },
+    { LW_KEY_END,           VK_END },
+    { LW_KEY_PAGE_UP,       VK_PRIOR },
+    { LW_KEY_PAGE_DOWN,     VK_NEXT },
+    { LW_KEY_UP,            VK_UP },
+    { LW_KEY_DOWN,          VK_DOWN },
+    { LW_KEY_LEFT,          VK_LEFT },
+    { LW_KEY_RIGHT,         VK_RIGHT },
+    { LW_KEY_CAPSLOCK,      VK_CAPITAL },
+    { LW_KEY_SCROLLLOCK,    VK_SCROLL },
+    { LW_KEY_PRINTSCREEN,   VK_SNAPSHOT },
+    { LW_KEY_F1,            VK_F1 },
+    { LW_KEY_F2,            VK_F2 },
+    { LW_KEY_F3,            VK_F3 },
+    { LW_KEY_F4,            VK_F4 },
+    { LW_KEY_F5,            VK_F5 },
+    { LW_KEY_F6,            VK_F6 },
+    { LW_KEY_F7,            VK_F7 },
+    { LW_KEY_F8,            VK_F8 },
+    { LW_KEY_F9,            VK_F9 },
+    { LW_KEY_F10,           VK_F10 },
+    { LW_KEY_F11,           VK_F11 },
+    { LW_KEY_F12,           VK_F12 },
+    { LW_KEY_F13,           VK_F13 },
+    { LW_KEY_F14,           VK_F14 },
+    { LW_KEY_F15,           VK_F15 },
+    { LW_KEY_F16,           VK_F16 },
+    { LW_KEY_F17,           VK_F17 },
+    { LW_KEY_F18,           VK_F18 },
+    { LW_KEY_F19,           VK_F19 },
+    { LW_KEY_F20,           VK_F20 },
+    { LW_KEY_F21,           VK_F21 },
+    { LW_KEY_F22,           VK_F22 },
+    { LW_KEY_F23,           VK_F23 },
+    { LW_KEY_F24,           VK_F24 },
+    { LW_KEY_F25,           LW_KEY_NONE }, /* no equivalent on win32 platform... */
+    { LW_KEY_SHIFT_LEFT,    VK_LSHIFT },
+    { LW_KEY_SHIFT_RIGHT,   VK_RSHIFT },
+    { LW_KEY_CTRL_LEFT,     VK_LCONTROL },
+    { LW_KEY_CTRL_RIGHT,    VK_RCONTROL },
+    { LW_KEY_ALT_LEFT,      VK_LMENU },
+    { LW_KEY_ALT_RIGTH,     VK_RMENU },
+    { LW_KEY_SUPER_LEFT,    VK_LWIN },
+    { LW_KEY_0_KP,          VK_NUMPAD0 },
+    { LW_KEY_1_KP,          VK_NUMPAD1 },
+    { LW_KEY_2_KP,          VK_NUMPAD2 },
+    { LW_KEY_3_KP,          VK_NUMPAD3 },
+    { LW_KEY_4_KP,          VK_NUMPAD4 },
+    { LW_KEY_5_KP,          VK_NUMPAD5 },
+    { LW_KEY_6_KP,          VK_NUMPAD6 },
+    { LW_KEY_7_KP,          VK_NUMPAD7 },
+    { LW_KEY_8_KP,          VK_NUMPAD8 },
+    { LW_KEY_9_KP,          VK_NUMPAD9 },
+    { LW_KEY_SUPER_RIGHT,   VK_RWIN },
+    { LW_KEY_NUMLOCK,       VK_NUMLOCK },
+    { LW_KEY_MENU,          VK_MENU },
+
+#  endif /* LIBWINDOW_WIN32 */
+
+    { LW_KEY_COUNT,         0 }
+};
 
 
 
@@ -857,16 +1198,18 @@ static bool lw_pollEventsPlatform(t_window window) {
             case (KeyPress):
             case (KeyRelease): {
                 t_event     event;
-                uint32_t    key;
+                uint64_t    key;
 
-                key = XkbKeycodeToKeysym(window->xlib.display, xevent.xkey.keycode, 0, xevent.xkey.state & ShiftMask ? 1 : 0);
+                key = LW_KEY_NONE;
+                if (!lw_inputPlatformToLibrary(XkbKeycodeToKeysym(window->xlib.display, xevent.xkey.keycode, 0, xevent.xkey.state & ShiftMask ? 1 : 0), &key)) { break; }
+
                 event = (t_event) {
                     .type = LW_EVENT_KEY,
                     .key = (t_keyEvent) {
                         .type = LW_EVENT_KEY,
                         .time = lw_getTime(),
                         .window = window,
-                        .key = key, /* temporary solution (until I implement a keymap map) */
+                        .key = key,
                         .state = xevent.xkey.state == KeyPress ? true : false,
                     }
                 };
@@ -972,16 +1315,17 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
         case (WM_KEYDOWN):
         case (WM_SYSKEYDOWN): {
             t_event     event;
-            uint32_t    key;
+            uint64_t    key;
 
-            key = wParam;
+            key = LW_KEY_NONE;
+            if (!lw_inputPlatformToLibrary(wParam, &key)) { break; }
             event = (t_event) {
                 .type = LW_EVENT_KEY,
                 .key = (t_keyEvent) {
                     .type = LW_EVENT_KEY,
                     .time = lw_getTime(),
                     .window = window,
-                    .key = key, /* temporary solution (until I implement a keymap map) */
+                    .key = key,
                     .state = true,
                 }
             };
@@ -991,16 +1335,17 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
         case (WM_KEYUP):
         case (WM_SYSKEYUP): {
             t_event     event;
-            uint32_t    key;
+            uint64_t    key;
 
-            key = wParam;
+            key = LW_KEY_NONE;
+            if (!lw_inputPlatformToLibrary(wParam, &key)) { break; }
             event = (t_event) {
                 .type = LW_EVENT_KEY,
                 .key = (t_keyEvent) {
                     .type = LW_EVENT_KEY,
                     .time = lw_getTime(),
                     .window = window,
-                    .key = key, /* temporary solution (until I implement a keymap map) */
+                    .key = key,
                     .state = false,
                 }
             };
@@ -1077,5 +1422,20 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 }
 
 #  endif /* LIBWINDOW_WIN32 */
+
+/* MODULE: Input */
+
+static bool lw_inputPlatformToLibrary(const uint64_t platform, uint64_t *library) {
+    for (size_t i = 0; g_keymap[i].library != LW_KEY_COUNT; i++) {
+        if (g_keymap[i].platform == platform) {
+            if (library) { *library = g_keymap[i].library; }
+
+            return (true);
+        }
+    }
+
+    return (false);
+}
+
 # endif /* LIBWINDOW_IMPLEMENTATION */
 #endif /* _libwindow_h_ */
