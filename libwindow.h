@@ -811,8 +811,6 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
 
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
-    
-    STARTUPINFO startupinfo;
 
     window->win32.hinstance = GetModuleHandle(0);
     if (!window->win32.hinstance) { return (false); }
@@ -827,8 +825,7 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
     window->win32.hwnd = CreateWindowEx(0, window->win32.wndclass.lpszClassName, title, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, window->win32.hinstance, window);
     if (!window->win32.hwnd) { return (false); }
 
-    GetStartupInfo(&startupinfo);
-    ShowWindow(window->win32.hwnd, startupinfo.wShowWindow);
+    ShowWindow(window->win32.hwnd, SW_SHOWNORMAL);
 
 #  endif /* LIBWINDOW_WIN32 */
 
