@@ -217,7 +217,7 @@ enum {
     LW_KEY_CURLY_CLOSE          = 0x007d,
     LW_KEY_TILDE                = 0x007e,
 
-    /* extended keycode         list... */
+    /* extended keycode list... */
 
     LW_KEY_ESCAPE               = 0x0100,
     LW_KEY_ENTER                = 0x0101,
@@ -266,7 +266,7 @@ enum {
     LW_KEY_CTRL_LEFT            = 0x011c,
     LW_KEY_CTRL_RIGHT           = 0x011d,
     LW_KEY_ALT_LEFT             = 0x011e,
-    LW_KEY_ALT_RIGTH            = 0x011f,
+    LW_KEY_ALT_RIGHT            = 0x011f,
     LW_KEY_SUPER_LEFT           = 0x0120,
     LW_KEY_0_KP                 = 0x0121,
     LW_KEY_1_KP                 = 0x0122,
@@ -322,16 +322,33 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 
 
 
-# if defined LIBWINDOW_IMPLEMENTATION
+
+# if defined (LIBWINDOW_IMPLEMENTATION)
+#
+#  /* determine which platform to use... */
+#  if !defined (LIBWINDOW_X11) && !defined (LIBWINDOW_WIN32)
+#   if defined (__unix__)
+#    if !defined (LIBWINDOW_NO_X11)
+#     define LIBWINDOW_X11
+#    endif /* LIBWINDOW_NO_X11 */
+#   endif /* __unix__ */
+#   if defined (_WIN32)
+#    if !defined (LIBWINDOW_NO_WIN32)
+#     define LIBWINDOW_WIN32
+#    endif /* LIBWINDOW_NO_WIN32 */
+#   endif /* _WIN32 */
+#  endif /* LIBWINDOW_X11, LIBWINDOW_WIN32 */
+#
+#  /* platform-independent includes... */
 #  include <stdlib.h>
 #  include <time.h>
 #  include <string.h>
-#  if defined (__linux__)
+#
+#  /* platform-dependent includes... */
+#  if defined (__unix__)
 #   include <unistd.h>
 #   include <sys/time.h>
-#  endif /* __linux__ */
-#
-#  /* Platform-specific headers... */
+#  endif /* __unix__ */
 #  if defined (LIBWINDOW_X11)
 #   include <X11/X.h>
 #   include <X11/Xlib.h>
@@ -343,7 +360,6 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 #   include <windows.h>
 #   include <windowsx.h>
 #  endif /* LIBWINDOW_WIN32 */
-
 
 
 /* SECTION: Types
@@ -419,7 +435,7 @@ static const struct s_keymap {
     uint64_t    library;
     uint64_t    platform;
 } g_keymap[] = {
-    { LW_KEY_NONE,          0 },
+    { LW_KEY_NONE,          0x0000 },
 
 #  if defined (LIBWINDOW_X11)
 
@@ -565,7 +581,7 @@ static const struct s_keymap {
     { LW_KEY_CTRL_LEFT,     XK_Control_L },
     { LW_KEY_CTRL_RIGHT,    XK_Control_R },
     { LW_KEY_ALT_LEFT,      XK_Alt_L },
-    { LW_KEY_ALT_RIGTH,     XK_Alt_R },
+    { LW_KEY_ALT_RIGHT,     XK_Alt_R },
     { LW_KEY_SUPER_LEFT,    XK_Super_L },
     { LW_KEY_0_KP,          XK_KP_0 },
     { LW_KEY_1_KP,          XK_KP_1 },
@@ -583,23 +599,8 @@ static const struct s_keymap {
 
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
-    
-    { LW_KEY_SPACE,         0x0020 },
-    { LW_KEY_EXCLAM,        0x0021 },
-    { LW_KEY_DQUOTE,        0x0022 },
-    { LW_KEY_HASH,          0x0023 },
-    { LW_KEY_DOLLAR,        0x0024 },
-    { LW_KEY_PERCENT,       0x0025 },
-    { LW_KEY_AMPERSAND,     0x0026 },
-    { LW_KEY_SQUOTE,        0x0027 },
-    { LW_KEY_PAREN_OPEN,    0x0028 },
-    { LW_KEY_PAREN_CLOSE,   0x0029 },
-    { LW_KEY_ASTERISK,      0x002a },
-    { LW_KEY_PLUS,          0x002b },
-    { LW_KEY_COMMA,         0x002c },
-    { LW_KEY_DASH,          0x002d },
-    { LW_KEY_PERIOD,        0x002e },
-    { LW_KEY_SLASH,         0x002f },
+
+    { LW_KEY_SPACE,         VK_SPACE },
     { LW_KEY_0,             0x0030 },
     { LW_KEY_1,             0x0031 },
     { LW_KEY_2,             0x0032 },
@@ -610,13 +611,16 @@ static const struct s_keymap {
     { LW_KEY_7,             0x0037 },
     { LW_KEY_8,             0x0038 },
     { LW_KEY_9,             0x0039 },
-    { LW_KEY_COLON,         0x003a },
-    { LW_KEY_SEMICOLON,     0x003b },
-    { LW_KEY_ANGLE_OPEN,    0x003c },
-    { LW_KEY_EQUAL,         0x003d },
-    { LW_KEY_ANGLE_CLOSE,   0x003e },
-    { LW_KEY_QUESTION,      0x003f },
-    { LW_KEY_AT,            0x0040 },
+    { LW_KEY_PAREN_CLOSE,   0x0030 },
+    { LW_KEY_EXCLAM,        0x0031 },
+    { LW_KEY_AT,            0x0032 },
+    { LW_KEY_HASH,          0x0033 },
+    { LW_KEY_DOLLAR,        0x0034 },
+    { LW_KEY_PERCENT,       0x0035 },
+    { LW_KEY_CARET,         0x0036 },
+    { LW_KEY_AMPERSAND,     0x0037 },
+    { LW_KEY_ASTERISK,      0x0038 },
+    { LW_KEY_PAREN_OPEN,    0x0039 },
     { LW_KEY_A,             0x0041 },
     { LW_KEY_B,             0x0042 },
     { LW_KEY_C,             0x0043 },
@@ -643,42 +647,54 @@ static const struct s_keymap {
     { LW_KEY_X,             0x0058 },
     { LW_KEY_Y,             0x0059 },
     { LW_KEY_Z,             0x005a },
-    { LW_KEY_BRACE_OPEN,    0x005b },
-    { LW_KEY_BACKSLASH,     0x005c },
-    { LW_KEY_BRACE_CLOSE,   0x005d },
-    { LW_KEY_CARET,         0x005e },
-    { LW_KEY_UNDERSCORE,    0x005f },
-    { LW_KEY_GRAVE,         0x0060 },
-    { LW_KEY_a,             0x0061 },
-    { LW_KEY_b,             0x0062 },
-    { LW_KEY_c,             0x0063 },
-    { LW_KEY_d,             0x0064 },
-    { LW_KEY_e,             0x0065 },
-    { LW_KEY_f,             0x0066 },
-    { LW_KEY_g,             0x0067 },
-    { LW_KEY_h,             0x0068 },
-    { LW_KEY_i,             0x0069 },
-    { LW_KEY_j,             0x006a },
-    { LW_KEY_k,             0x006b },
-    { LW_KEY_l,             0x006c },
-    { LW_KEY_m,             0x006d },
-    { LW_KEY_n,             0x006e },
-    { LW_KEY_o,             0x006f },
-    { LW_KEY_p,             0x0070 },
-    { LW_KEY_q,             0x0071 },
-    { LW_KEY_r,             0x0072 },
-    { LW_KEY_s,             0x0073 },
-    { LW_KEY_t,             0x0074 },
-    { LW_KEY_u,             0x0075 },
-    { LW_KEY_v,             0x0076 },
-    { LW_KEY_w,             0x0077 },
-    { LW_KEY_x,             0x0078 },
-    { LW_KEY_y,             0x0079 },
-    { LW_KEY_z,             0x007a },
-    { LW_KEY_CURLY_OPEN,    0x007b },
-    { LW_KEY_BAR,           0x007c },
-    { LW_KEY_CURLY_CLOSE,   0x007d },
-    { LW_KEY_TILDE,         0x007e },
+    { LW_KEY_a,             0x0041 },
+    { LW_KEY_b,             0x0042 },
+    { LW_KEY_c,             0x0043 },
+    { LW_KEY_d,             0x0044 },
+    { LW_KEY_e,             0x0045 },
+    { LW_KEY_f,             0x0046 },
+    { LW_KEY_g,             0x0047 },
+    { LW_KEY_h,             0x0048 },
+    { LW_KEY_i,             0x0049 },
+    { LW_KEY_j,             0x004a },
+    { LW_KEY_k,             0x004b },
+    { LW_KEY_l,             0x004c },
+    { LW_KEY_m,             0x004d },
+    { LW_KEY_n,             0x004e },
+    { LW_KEY_o,             0x004f },
+    { LW_KEY_p,             0x0050 },
+    { LW_KEY_q,             0x0051 },
+    { LW_KEY_r,             0x0052 },
+    { LW_KEY_s,             0x0053 },
+    { LW_KEY_t,             0x0054 },
+    { LW_KEY_u,             0x0055 },
+    { LW_KEY_v,             0x0056 },
+    { LW_KEY_w,             0x0057 },
+    { LW_KEY_x,             0x0058 },
+    { LW_KEY_y,             0x0059 },
+    { LW_KEY_z,             0x005a },
+    { LW_KEY_SEMICOLON,     VK_OEM_1 },
+    { LW_KEY_SLASH,         VK_OEM_2 },
+    { LW_KEY_GRAVE,         VK_OEM_3 },
+    { LW_KEY_BRACE_OPEN,    VK_OEM_4 },
+    { LW_KEY_BACKSLASH,     VK_OEM_5 },
+    { LW_KEY_BRACE_CLOSE,   VK_OEM_6 },
+    { LW_KEY_SQUOTE,        VK_OEM_7 },
+    { LW_KEY_COLON,         VK_OEM_1 },
+    { LW_KEY_QUESTION,      VK_OEM_2 },
+    { LW_KEY_TILDE,         VK_OEM_3 },
+    { LW_KEY_CURLY_OPEN,    VK_OEM_4 },
+    { LW_KEY_BAR,           VK_OEM_5 },
+    { LW_KEY_CURLY_CLOSE,   VK_OEM_6 },
+    { LW_KEY_DQUOTE,        VK_OEM_7 },
+    { LW_KEY_EQUAL,         VK_OEM_PLUS },
+    { LW_KEY_DASH,          VK_OEM_MINUS },
+    { LW_KEY_COMMA,         VK_OEM_COMMA },
+    { LW_KEY_PERIOD,        VK_OEM_PERIOD },
+    { LW_KEY_PLUS,          VK_OEM_PLUS },
+    { LW_KEY_UNDERSCORE,    VK_OEM_MINUS },
+    { LW_KEY_ANGLE_OPEN,    VK_OEM_COMMA },
+    { LW_KEY_ANGLE_CLOSE,   VK_OEM_PERIOD },
     { LW_KEY_ESCAPE,        VK_ESCAPE },
     { LW_KEY_ENTER,         VK_RETURN },
     { LW_KEY_TAB,           VK_TAB },
@@ -721,12 +737,12 @@ static const struct s_keymap {
     { LW_KEY_F23,           VK_F23 },
     { LW_KEY_F24,           VK_F24 },
     { LW_KEY_F25,           LW_KEY_NONE }, /* no equivalent on win32 platform... */
-    { LW_KEY_SHIFT_LEFT,    VK_LSHIFT },
-    { LW_KEY_SHIFT_RIGHT,   VK_RSHIFT },
-    { LW_KEY_CTRL_LEFT,     VK_LCONTROL },
-    { LW_KEY_CTRL_RIGHT,    VK_RCONTROL },
-    { LW_KEY_ALT_LEFT,      VK_LMENU },
-    { LW_KEY_ALT_RIGTH,     VK_RMENU },
+    { LW_KEY_SHIFT_LEFT,    VK_SHIFT },
+    { LW_KEY_SHIFT_RIGHT,   VK_SHIFT },
+    { LW_KEY_CTRL_LEFT,     VK_CONTROL },
+    { LW_KEY_CTRL_RIGHT,    VK_CONTROL },
+    { LW_KEY_ALT_LEFT,      VK_MENU },
+    { LW_KEY_ALT_RIGHT,     VK_RMENU },
     { LW_KEY_SUPER_LEFT,    VK_LWIN },
     { LW_KEY_0_KP,          VK_NUMPAD0 },
     { LW_KEY_1_KP,          VK_NUMPAD1 },
@@ -1273,11 +1289,12 @@ static bool lw_pollEventsPlatform(t_window window) {
 
 #  endif /* LIBWINDOW_X11 */
 #  if defined (LIBWINDOW_WIN32)
-    
+
 static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     t_window    window;
 
     window = 0;
+    /* retrieve the pointer to the window object... */
     switch (uMsg) {
         case (WM_CREATE):
         case (WM_NCCREATE): {
@@ -1296,6 +1313,7 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
         } break;
     }
 
+    /* process windows messages... */
     switch (uMsg) {
         case (WM_CLOSE):
         case (WM_DESTROY): {
@@ -1318,7 +1336,7 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
             uint64_t    key;
 
             key = LW_KEY_NONE;
-            if (!lw_inputPlatformToLibrary(wParam, &key)) { break; }
+            if (!lw_inputPlatformToLibrary(LOWORD(wParam), &key)) { break; }
             event = (t_event) {
                 .type = LW_EVENT_KEY,
                 .key = (t_keyEvent) {
@@ -1338,7 +1356,7 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
             uint64_t    key;
 
             key = LW_KEY_NONE;
-            if (!lw_inputPlatformToLibrary(wParam, &key)) { break; }
+            if (!lw_inputPlatformToLibrary(LOWORD(wParam), &key)) { break; }
             event = (t_event) {
                 .type = LW_EVENT_KEY,
                 .key = (t_keyEvent) {
