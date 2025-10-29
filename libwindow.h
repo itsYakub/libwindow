@@ -1365,33 +1365,27 @@ static bool lw_pollEventsPlatform(t_window window) {
 
                 /* Process window resize event... */
                 if (xevent.xconfigure.width != (int) window->data.width || xevent.xconfigure.height != (int) window->data.height) {
-                    window->data.width = xevent.xconfigure.width;
-                    window->data.height = xevent.xconfigure.height;
-                    
                     event = (t_event) {
                         .type = LW_EVENT_RESIZE,
                         .resize = (t_resizeEvent) {
                             .type = LW_EVENT_RESIZE,
                             .time = lw_getTime(),
                             .window = window,
-                            .width = xevent.xconfigure.width,
-                            .height = xevent.xconfigure.height,
+                            .width = window->data.width = xevent.xconfigure.width,
+                            .height = window->data.height = xevent.xconfigure.height,
                         }
                     };
                 }
                 /* Process window movement event... */
                 else if (xevent.xconfigure.x != (int) window->data.x || xevent.xconfigure.y != (int) window->data.y) {
-                    window->data.x = xevent.xconfigure.x;
-                    window->data.y = xevent.xconfigure.y;
-                    
                     event = (t_event) {
                         .type = LW_EVENT_MOVE,
                         .move = (t_moveEvent) {
                             .type = LW_EVENT_MOVE,
                             .time = lw_getTime(),
                             .window = window,
-                            .x = xevent.xconfigure.x,
-                            .y = xevent.xconfigure.y,
+                            .x = window->data.x = xevent.xconfigure.x,
+                            .y = window->data.y = xevent.xconfigure.y,
                         }
                     };
                 }
@@ -1570,8 +1564,8 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
                             .type = LW_EVENT_RESIZE,
                             .time = lw_getTime(),
                             .window = window,
-                            .width = LOWORD(lParam),
-                            .height = HIWORD(lParam),
+                            .width = window->data.width = LOWORD(lParam),
+                            .height = window->data.height = HIWORD(lParam),
                         }
                     };
                 } break;
@@ -1589,8 +1583,8 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
                     .type = LW_EVENT_MOVE,
                     .time = lw_getTime(),
                     .window = window,
-                    .x = LOWORD(lParam),
-                    .y = HIWORD(lParam),
+                    .x = window->data.x = LOWORD(lParam),
+                    .y = window->data.y = HIWORD(lParam),
                 }
             };
             lw_pushEvent(window, &event);
