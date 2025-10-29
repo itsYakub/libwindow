@@ -415,7 +415,8 @@ struct s_window {
     } xutil;
 
     struct {
-        XID     wm_delete_window;
+        XID     WM_PROTOCOLS,
+                WM_DELETE_WINDOW;
     } xatom;
 
 #  endif /* LIBWINDOW_X11 */
@@ -839,10 +840,13 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
     window->xlib.window_id = XCreateWindow(window->xlib.display, window->xlib.root_id, 0, 0, width, height, 0, window->xutil.visual.depth, InputOutput, window->xutil.visual.visual, CWColormap | CWBorderPixel | CWBackPixel | CWEventMask, &attr); 
     if (!window->xlib.window_id) { return (false); }
 
-    window->xatom.wm_delete_window = XInternAtom(window->xlib.display, "WM_DELETE_WINDOW", false);
-    if (!window->xatom.wm_delete_window) { return (false); }
+    window->xatom.WM_PROTOCOLS = XInternAtom(window->xlib.display, "WM_PROTOCOLS", false);
+    if (!window->xatom.WM_PROTOCOLS) { return (false); }
 
-    XSetWMProtocols(window->xlib.display, window->xlib.window_id, &window->xatom.wm_delete_window, 1);
+    window->xatom.WM_DELETE_WINDOW = XInternAtom(window->xlib.display, "WM_DELETE_WINDOW", false);
+    if (!window->xatom.WM_DELETE_WINDOW) { return (false); }
+
+    XSetWMProtocols(window->xlib.display, window->xlib.window_id, &window->xatom.WM_DELETE_WINDOW, 1);
     XSelectInput(window->xlib.display, window->xlib.window_id, attr.event_mask);
     XStoreName(window->xlib.display, window->xlib.window_id, title);
     XMapWindow(window->xlib.display, window->xlib.window_id);
@@ -1273,18 +1277,22 @@ static bool lw_pollEventsPlatform(t_window window) {
         
         switch (xevent.type) {
             case (ClientMessage): {
-                if (xevent.xclient.data.l[0] == (long) window->xatom.wm_delete_window) {
-                    t_event event;
+                if (xevent.xclient.message_type == window->xatom.WM_PROTOCOLS) {
+                    const Atom  PROTOCOL = xevent.xclient.data.l[0];
 
-                    event = (t_event) {
-                        .type = LW_EVENT_QUIT,
-                        .quit = (t_quitEvent) {
+                    if (PROTOCOL == window->xatom.WM_DELETE_WINDOW) {
+                        t_event event;
+
+                        event = (t_event) {
                             .type = LW_EVENT_QUIT,
-                            .time = lw_getTime(),
-                            .window = window,
-                        }
-                    };
-                    lw_pushEvent(window, &event);
+                            .quit = (t_quitEvent) {
+                                .type = LW_EVENT_QUIT,
+                                .time = lw_getTime(),
+                                .window = window,
+                            }
+                        };
+                        lw_pushEvent(window, &event);
+                    }
                 }
             } break;
 
@@ -1293,8 +1301,8 @@ static bool lw_pollEventsPlatform(t_window window) {
                 t_event     event;
                 uint64_t    key;
 
-                key = LW_KEY_NONE;
-                if (!lw_inputPlatformToLibrary(XkbKeycodeToKeysym(window->xlib.display, xevent.xkey.keycode, 0, xevent.xkey.state & ShiftMask ? 1 : 0), &key)) { break; }
+                key = XkbKeycodeToKeysym(window->xlib.display, xevent.xkey.keycode, 0, xevent.xkey.state & ShiftMask ? 1 : 0);
+                if (!lw_inputPlatformToLibrary(key, &key)) { break; }
 
                 event = (t_event) {
                     .type = LW_EVENT_KEY,
@@ -1339,7 +1347,6 @@ static bool lw_pollEventsPlatform(t_window window) {
                     };
                 }
                 lw_pushEvent(window, &event);
-
             } break;
 
             case (MotionNotify): {
@@ -1547,7 +1554,7 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 
         case (WM_SIZE):
         case (WM_SIZING): {
-            t_event     event;
+            t_event event;
             
             switch (wParam) {
                 /* Handle minimize event... */
@@ -1575,7 +1582,7 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 
         case (WM_MOVE):
         case (WM_MOVING): {
-            t_event     event;
+            t_event event;
            
             event = (t_event) {
                 .type = LW_EVENT_MOVE,
