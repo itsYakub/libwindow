@@ -49,10 +49,18 @@ enum {
     LW_EVENT_KEY                = 0x0002,
     LW_EVENT_BUTTON             = 0x0003,
     LW_EVENT_MOTION             = 0x0004,
+    LW_EVENT_RESIZE             = 0x0005,
+    LW_EVENT_MOVE               = 0x0006,
 
     /* ... */
     
     LW_EVENT_COUNT
+};
+
+struct s_commonEvent {
+    uint64_t    type;
+    uint64_t    time;
+    t_window    window;
 };
 
 struct s_quitEvent {
@@ -87,10 +95,29 @@ struct s_motionEvent {
     uint32_t    y, yrel;
 };
 
+struct s_resizeEvent {
+    uint64_t    type;
+    uint64_t    time;
+    t_window    window;
+    uint32_t    width;
+    uint32_t    height;
+};
+
+struct s_moveEvent {
+    uint64_t    type;
+    uint64_t    time;
+    t_window    window;
+    uint32_t    x;
+    uint32_t    y;
+};
+
+typedef struct s_commonEvent    t_commonEvent;
 typedef struct s_quitEvent      t_quitEvent;
 typedef struct s_keyEvent       t_keyEvent;
 typedef struct s_buttonEvent    t_buttonEvent;
 typedef struct s_motionEvent    t_motionEvent;
+typedef struct s_resizeEvent    t_resizeEvent;
+typedef struct s_moveEvent      t_moveEvent;
 
 struct s_event {
     uint32_t            type;
@@ -99,6 +126,8 @@ struct s_event {
         t_keyEvent      key;
         t_buttonEvent   button;
         t_motionEvent   motion;
+        t_resizeEvent   resize;
+        t_moveEvent     move;
     };
 };
 
@@ -295,6 +324,9 @@ enum {
 LIBWINDOW_API bool  lw_createWindow(t_window *, const size_t, const size_t, const char *);
 LIBWINDOW_API bool  lw_destroyWindow(t_window);
 
+LIBWINDOW_API bool  lw_showWindow(t_window);
+LIBWINDOW_API bool  lw_hideWindow(t_window);
+
 LIBWINDOW_API bool  lw_getWindowSize(t_window, size_t *, size_t *);
 LIBWINDOW_API bool  lw_setWindowSize(t_window, const size_t, const size_t);
 LIBWINDOW_API bool  lw_setWindowMinSize(t_window, const size_t, const size_t);
@@ -390,12 +422,18 @@ struct s_window {
 #  if defined (LIBWINDOW_WIN32)
     
     struct {
-        HANDLE      hinstance;
-        HANDLE      hwnd;
+        HANDLE      hinstance,
+                    hwnd;
         WNDCLASS    wndclass;
     } win32;
 
 #  endif /* LIBWINDOW_WIN32 */
+
+    struct {
+        size_t  x, y;
+        size_t  width,
+                height;
+    } data;
 
     struct {
         /* Let's predefine the size of the queue to 1024, just for now */
@@ -432,8 +470,8 @@ static bool lw_inputPlatformToLibrary(const uint64_t, uint64_t *);
 /* MODULE: Input */
 
 static const struct s_keymap {
-    uint64_t    library;
-    uint64_t    platform;
+    uint64_t    library,
+                platform;
 } g_keymap[] = {
     { LW_KEY_NONE,          0x0000 },
 
@@ -794,7 +832,7 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
 
     attr = (XSetWindowAttributes) { 0 };
     attr.background_pixel = 0;
-    attr.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | ExposureMask | ClientMessage;
+    attr.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | ExposureMask | StructureNotifyMask | ClientMessage;
     attr.colormap = XCreateColormap(window->xlib.display, window->xlib.root_id, window->xutil.visual.visual, AllocNone);
     if (!attr.colormap) { return (false); }
 
@@ -825,10 +863,12 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
     window->win32.hwnd = CreateWindowEx(0, window->win32.wndclass.lpszClassName, title, WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, window->win32.hinstance, window);
     if (!window->win32.hwnd) { return (false); }
 
-    ShowWindow(window->win32.hwnd, SW_SHOWNORMAL);
+    ShowWindow(window->win32.hwnd, SW_SHOW);
 
 #  endif /* LIBWINDOW_WIN32 */
 
+    if (!lw_getWindowPosition(window, &window->data.x, &window->data.y)) { return (false); }
+    if (!lw_getWindowSize(window, &window->data.width, &window->data.height)) { return (false); }
     *result = window;
     return (true);
 }
@@ -851,6 +891,42 @@ LIBWINDOW_API bool  lw_destroyWindow(t_window window) {
 #  endif /* LIBWINDOW_WIN32 */
 
     free(window);
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_showWindow(t_window window) {
+    /* Safety check... */
+    if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+
+    XMapWindow(window->xlib.display, window->xlib.window_id);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+    ShowWindow(window->win32.hwnd, SW_SHOW);
+
+#  endif /* LIBWINDOW_WIN32 */
+
+    return (true);
+}
+
+LIBWINDOW_API bool  lw_hideWindow(t_window window) {
+    /* Safety check... */
+    if (!window) { return (false); }
+
+#  if defined (LIBWINDOW_X11)
+
+    XUnmapWindow(window->xlib.display, window->xlib.window_id);
+
+#  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WIN32)
+
+    ShowWindow(window->win32.hwnd, SW_HIDE);
+
+#  endif /* LIBWINDOW_WIN32 */
+
     return (true);
 }
 
@@ -895,6 +971,10 @@ LIBWINDOW_API bool  lw_setWindowSize(t_window window, const size_t width, const 
     (void) height;
 
 #  endif /* LIBWINDOW_WIN32 */
+    
+    /* update internal window values... */
+    window->data.width = width;
+    window->data.height = height;
 
     return (true);
 }
@@ -1279,6 +1359,44 @@ static bool lw_pollEventsPlatform(t_window window) {
                 };
                 lw_pushEvent(window, &event);
             } break;
+
+            case (ConfigureNotify): {
+                t_event event;
+
+                /* Process window resize event... */
+                if (xevent.xconfigure.width != (int) window->data.width || xevent.xconfigure.height != (int) window->data.height) {
+                    window->data.width = xevent.xconfigure.width;
+                    window->data.height = xevent.xconfigure.height;
+                    
+                    event = (t_event) {
+                        .type = LW_EVENT_RESIZE,
+                        .resize = (t_resizeEvent) {
+                            .type = LW_EVENT_RESIZE,
+                            .time = lw_getTime(),
+                            .window = window,
+                            .width = xevent.xconfigure.width,
+                            .height = xevent.xconfigure.height,
+                        }
+                    };
+                }
+                /* Process window movement event... */
+                else if (xevent.xconfigure.x != (int) window->data.x || xevent.xconfigure.y != (int) window->data.y) {
+                    window->data.x = xevent.xconfigure.x;
+                    window->data.y = xevent.xconfigure.y;
+                    
+                    event = (t_event) {
+                        .type = LW_EVENT_MOVE,
+                        .move = (t_moveEvent) {
+                            .type = LW_EVENT_MOVE,
+                            .time = lw_getTime(),
+                            .window = window,
+                            .x = xevent.xconfigure.x,
+                            .y = xevent.xconfigure.y,
+                        }
+                    };
+                }
+                lw_pushEvent(window, &event);
+            } break;
         }
     }
     return (true);
@@ -1428,6 +1546,51 @@ static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
                     .xrel = (uint32_t) GET_X_LPARAM(lParam),
                     .y = (uint32_t) GET_Y_LPARAM(lParam),
                     .yrel = (uint32_t) GET_Y_LPARAM(lParam),
+                }
+            };
+            lw_pushEvent(window, &event);
+        } break;
+
+        case (WM_SIZE):
+        case (WM_SIZING): {
+            t_event     event;
+            
+            switch (wParam) {
+                /* Handle minimize event... */
+                case (SIZE_MINIMIZED): { } break;
+
+                /* Handle maximize event... */
+                case (SIZE_MAXIMIZED): { } break;
+
+                /* Handle resize event... */
+                default: {
+                    event = (t_event) {
+                        .type = LW_EVENT_RESIZE,
+                        .resize = (t_resizeEvent) {
+                            .type = LW_EVENT_RESIZE,
+                            .time = lw_getTime(),
+                            .window = window,
+                            .width = LOWORD(lParam),
+                            .height = HIWORD(lParam),
+                        }
+                    };
+                } break;
+            }
+            lw_pushEvent(window, &event);
+        } break;
+
+        case (WM_MOVE):
+        case (WM_MOVING): {
+            t_event     event;
+           
+            event = (t_event) {
+                .type = LW_EVENT_MOVE,
+                .move = (t_moveEvent) {
+                    .type = LW_EVENT_MOVE,
+                    .time = lw_getTime(),
+                    .window = window,
+                    .x = LOWORD(lParam),
+                    .y = HIWORD(lParam),
                 }
             };
             lw_pushEvent(window, &event);

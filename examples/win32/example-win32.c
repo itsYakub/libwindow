@@ -16,7 +16,9 @@ int main() {
         while (lw_pollEvents(window, &event)) {
             switch (event.type) {
                 case (LW_EVENT_QUIT): { exit = true; } break;
-                case (LW_EVENT_KEY): { printf("%d\n", event.key.key); } break;
+
+                case (LW_EVENT_RESIZE): { printf("%d %d\n", event.resize.width, event.resize.height); } break;
+                case (LW_EVENT_MOVE): { printf("%d %d\n", event.move.x, event.move.y); } break;
             }
         }
     }
