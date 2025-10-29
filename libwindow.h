@@ -26,13 +26,18 @@
 enum {
     LW_PROP_NONE                = 0x0000,
 
-    LW_PROP_X11_DISPLAY         = 0x0001,
-    LW_PROP_X11_ROOT_ID         = 0x0002,
-    LW_PROP_X11_WINDOW_ID       = 0x0003,
-    LW_PROP_X11_SCREEN_ID       = 0x0004,
+    LW_PROP_X11_DISPLAY,
+    LW_PROP_X11_ROOT_ID,
+    LW_PROP_X11_WINDOW_ID,
+    LW_PROP_X11_SCREEN_ID,
 
-    LW_PROP_WIN32_HWND          = 0x0005,
-    LW_PROP_WIN32_HINSTANCE     = 0x0006,
+    LW_PROP_WAYLAND_DISPLAY,
+    LW_PROP_WAYLAND_REGISTRY,
+    LW_PROP_WAYLAND_COMPOSITOR,
+    LW_PROP_WAYLAND_SURFACE,
+
+    LW_PROP_WIN32_HWND,
+    LW_PROP_WIN32_HINSTANCE,
 
     /* ... */
 
@@ -354,11 +359,10 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 
 
 
-
 # if defined (LIBWINDOW_IMPLEMENTATION)
 #
 #  /* determine which platform to use... */
-#  if !defined (LIBWINDOW_X11) && !defined (LIBWINDOW_WIN32)
+#  if !defined (LIBWINDOW_X11) && !defined (LIBWINDOW_WAYLAND) && !defined (LIBWINDOW_WIN32)
 #   if defined (__unix__)
 #    if !defined (LIBWINDOW_NO_X11)
 #     define LIBWINDOW_X11
@@ -369,7 +373,7 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 #     define LIBWINDOW_WIN32
 #    endif /* LIBWINDOW_NO_WIN32 */
 #   endif /* _WIN32 */
-#  endif /* LIBWINDOW_X11, LIBWINDOW_WIN32 */
+#  endif /* LIBWINDOW_X11, LIBWINDOW_WAYLAND, LIBWINDOW_WIN32 */
 #
 #  /* platform-independent includes... */
 #  include <stdlib.h>
@@ -387,7 +391,16 @@ LIBWINDOW_API bool      lw_waitTime(uint64_t);
 #   include <X11/Xatom.h>
 #   include <X11/Xutil.h>
 #   include <X11/XKBlib.h>
+#   include <X11/keysym.h>
+#   include <X11/keysymdef.h>
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+#   include <wayland-client.h>
+#   include <wayland-client-core.h>
+#   include <wayland-client-protocol.h>
+#   include <xkbcommon/xkbcommon.h>
+#   include <xkbcommon/xkbcommon-keysyms.h>
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 #   include <windows.h>
 #   include <windowsx.h>
@@ -420,6 +433,26 @@ struct s_window {
     } xatom;
 
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    struct {
+        struct wl_display       *display;
+        struct wl_registry      *registry;
+        struct wl_compositor    *compositor;
+        struct wl_surface       *surface;
+        struct wl_seat          *seat;
+        struct wl_keyboard      *keyboard;
+        struct wl_pointer       *pointer;
+
+        struct {
+            struct wl_registry_listener registry;
+            struct wl_seat_listener     seat;
+            struct wl_keyboard_listener keyboard;
+            struct wl_pointer_listener  pointer;
+        } listener;
+    } wayland;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
     
     struct {
@@ -448,13 +481,38 @@ struct s_window {
 /* SECTION: Internal API
  * * * * * * * * * * * */
 
-/* MODULE: Event */
-
 #  if defined (LIBWINDOW_X11)
 
 static bool lw_pollEventsPlatform(t_window);
 
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+static void wl_registry_global(void *, struct wl_registry *, uint32_t, const char *, uint32_t);
+static void wl_registry_global_remove(void *, struct wl_registry *, uint32_t);
+
+static void wl_seat_capabilities(void *, struct wl_seat *, uint32_t);
+static void wl_seat_name(void *, struct wl_seat *, const char *);
+
+static void wl_keyboard_keymap(void *, struct wl_keyboard *, uint32_t, int32_t, uint32_t);
+static void wl_keyboard_enter(void *, struct wl_keyboard *, uint32_t, struct wl_surface *, struct wl_array *);
+static void wl_keyboard_leave(void *, struct wl_keyboard *, uint32_t, struct wl_surface *);
+static void wl_keyboard_key(void *, struct wl_keyboard *, uint32_t, uint32_t, uint32_t, uint32_t);
+static void wl_keyboard_modifiers(void *, struct wl_keyboard *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+static void wl_keyboard_repeat_info(void *, struct wl_keyboard *, int32_t, int32_t);
+
+static void wl_pointer_enter(void *, struct wl_pointer *, uint32_t, struct wl_surface *, wl_fixed_t, wl_fixed_t);
+static void wl_pointer_leave(void *, struct wl_pointer *, uint32_t, struct wl_surface *);
+static void wl_pointer_motion(void *, struct wl_pointer *, uint32_t, wl_fixed_t, wl_fixed_t surface_y);
+static void wl_pointer_button(void *, struct wl_pointer *, uint32_t, uint32_t, uint32_t, uint32_t);
+static void wl_pointer_axis(void *, struct wl_pointer *, uint32_t, uint32_t, wl_fixed_t);
+static void wl_pointer_frame(void *, struct wl_pointer *);
+static void wl_pointer_axis_source(void *, struct wl_pointer *, uint32_t);
+static void wl_pointer_axis_stop(void *, struct wl_pointer *, uint32_t, uint32_t);
+static void wl_pointer_axis_discrete(void *, struct wl_pointer *, uint32_t, int32_t);
+static void wl_pointer_axis_value120(void *, struct wl_pointer *, uint32_t, int32_t);
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
 static LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
@@ -467,8 +525,6 @@ static bool lw_inputPlatformToLibrary(const uint64_t, uint64_t *);
 
 /* SECTION: Global Variables
  * * * * * * * * * * * * * */
-
-/* MODULE: Input */
 
 static const struct s_keymap {
     uint64_t    library,
@@ -636,7 +692,168 @@ static const struct s_keymap {
     { LW_KEY_NUMLOCK,       XK_Num_Lock },
     { LW_KEY_MENU,          XK_Menu },
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11*/
+#  if defined (LIBWINDOW_WAYLAND)
+    
+    { LW_KEY_SPACE,         XKB_KEY_space },
+    { LW_KEY_EXCLAM,        XKB_KEY_exclam },
+    { LW_KEY_DQUOTE,        XKB_KEY_quotedbl },
+    { LW_KEY_HASH,          XKB_KEY_numbersign },
+    { LW_KEY_DOLLAR,        XKB_KEY_dollar },
+    { LW_KEY_PERCENT,       XKB_KEY_percent },
+    { LW_KEY_AMPERSAND,     XKB_KEY_ampersand },
+    { LW_KEY_SQUOTE,        XKB_KEY_apostrophe },
+    { LW_KEY_PAREN_OPEN,    XKB_KEY_parenleft },
+    { LW_KEY_PAREN_CLOSE,   XKB_KEY_parenright },
+    { LW_KEY_ASTERISK,      XKB_KEY_asterisk },
+    { LW_KEY_PLUS,          XKB_KEY_plus },
+    { LW_KEY_COMMA,         XKB_KEY_comma },
+    { LW_KEY_DASH,          XKB_KEY_minus },
+    { LW_KEY_PERIOD,        XKB_KEY_period },
+    { LW_KEY_SLASH,         XKB_KEY_slash },
+    { LW_KEY_0,             XKB_KEY_0 },
+    { LW_KEY_1,             XKB_KEY_1 },
+    { LW_KEY_2,             XKB_KEY_2 },
+    { LW_KEY_3,             XKB_KEY_3 },
+    { LW_KEY_4,             XKB_KEY_4 },
+    { LW_KEY_5,             XKB_KEY_5 },
+    { LW_KEY_6,             XKB_KEY_6 },
+    { LW_KEY_7,             XKB_KEY_7 },
+    { LW_KEY_8,             XKB_KEY_8 },
+    { LW_KEY_9,             XKB_KEY_9 },
+    { LW_KEY_COLON,         XKB_KEY_colon },
+    { LW_KEY_SEMICOLON,     XKB_KEY_semicolon },
+    { LW_KEY_ANGLE_OPEN,    XKB_KEY_less },
+    { LW_KEY_EQUAL,         XKB_KEY_equal },
+    { LW_KEY_ANGLE_CLOSE,   XKB_KEY_greater },
+    { LW_KEY_QUESTION,      XKB_KEY_underscore },
+    { LW_KEY_AT,            XKB_KEY_at },
+    { LW_KEY_A,             XKB_KEY_A },
+    { LW_KEY_B,             XKB_KEY_B },
+    { LW_KEY_C,             XKB_KEY_C },
+    { LW_KEY_D,             XKB_KEY_D },
+    { LW_KEY_E,             XKB_KEY_E },
+    { LW_KEY_F,             XKB_KEY_F },
+    { LW_KEY_G,             XKB_KEY_G },
+    { LW_KEY_H,             XKB_KEY_H },
+    { LW_KEY_I,             XKB_KEY_I },
+    { LW_KEY_J,             XKB_KEY_J },
+    { LW_KEY_K,             XKB_KEY_K },
+    { LW_KEY_L,             XKB_KEY_L },
+    { LW_KEY_M,             XKB_KEY_M },
+    { LW_KEY_N,             XKB_KEY_N },
+    { LW_KEY_O,             XKB_KEY_O },
+    { LW_KEY_P,             XKB_KEY_P },
+    { LW_KEY_Q,             XKB_KEY_Q },
+    { LW_KEY_R,             XKB_KEY_R },
+    { LW_KEY_S,             XKB_KEY_S },
+    { LW_KEY_T,             XKB_KEY_T },
+    { LW_KEY_U,             XKB_KEY_U },
+    { LW_KEY_V,             XKB_KEY_V },
+    { LW_KEY_W,             XKB_KEY_W },
+    { LW_KEY_X,             XKB_KEY_X },
+    { LW_KEY_Y,             XKB_KEY_Y },
+    { LW_KEY_Z,             XKB_KEY_Z },
+    { LW_KEY_BRACE_OPEN,    XKB_KEY_bracketleft },
+    { LW_KEY_BACKSLASH,     XKB_KEY_backslash },
+    { LW_KEY_BRACE_CLOSE,   XKB_KEY_bracketright },
+    { LW_KEY_CARET,         XKB_KEY_asciicircum },
+    { LW_KEY_UNDERSCORE,    XKB_KEY_underscore },
+    { LW_KEY_GRAVE,         XKB_KEY_grave },
+    { LW_KEY_a,             XKB_KEY_a },
+    { LW_KEY_b,             XKB_KEY_b },
+    { LW_KEY_c,             XKB_KEY_c },
+    { LW_KEY_d,             XKB_KEY_d },
+    { LW_KEY_e,             XKB_KEY_e },
+    { LW_KEY_f,             XKB_KEY_f },
+    { LW_KEY_g,             XKB_KEY_g },
+    { LW_KEY_h,             XKB_KEY_h },
+    { LW_KEY_i,             XKB_KEY_i },
+    { LW_KEY_j,             XKB_KEY_j },
+    { LW_KEY_k,             XKB_KEY_k },
+    { LW_KEY_l,             XKB_KEY_l },
+    { LW_KEY_m,             XKB_KEY_m },
+    { LW_KEY_n,             XKB_KEY_n },
+    { LW_KEY_o,             XKB_KEY_o },
+    { LW_KEY_p,             XKB_KEY_p },
+    { LW_KEY_q,             XKB_KEY_q },
+    { LW_KEY_r,             XKB_KEY_r },
+    { LW_KEY_s,             XKB_KEY_s },
+    { LW_KEY_t,             XKB_KEY_t },
+    { LW_KEY_u,             XKB_KEY_u },
+    { LW_KEY_v,             XKB_KEY_v },
+    { LW_KEY_w,             XKB_KEY_w },
+    { LW_KEY_x,             XKB_KEY_x },
+    { LW_KEY_y,             XKB_KEY_y },
+    { LW_KEY_z,             XKB_KEY_z },
+    { LW_KEY_CURLY_OPEN,    XKB_KEY_braceleft },
+    { LW_KEY_BAR,           XKB_KEY_bar },
+    { LW_KEY_CURLY_CLOSE,   XKB_KEY_braceright },
+    { LW_KEY_TILDE,         XKB_KEY_asciitilde },
+    { LW_KEY_ESCAPE,        XKB_KEY_Escape },
+    { LW_KEY_ENTER,         XKB_KEY_Return },
+    { LW_KEY_TAB,           XKB_KEY_Tab },
+    { LW_KEY_BACKSPACE,     XKB_KEY_BackSpace },
+    { LW_KEY_INSERT,        XKB_KEY_Insert },
+    { LW_KEY_DELETE,        XKB_KEY_Delete },
+    { LW_KEY_HOME,          XKB_KEY_Home },
+    { LW_KEY_END,           XKB_KEY_End },
+    { LW_KEY_PAGE_UP,       XKB_KEY_Prior },
+    { LW_KEY_PAGE_DOWN,     XKB_KEY_Next },
+    { LW_KEY_UP,            XKB_KEY_Up },
+    { LW_KEY_DOWN,          XKB_KEY_Down },
+    { LW_KEY_LEFT,          XKB_KEY_Left },
+    { LW_KEY_RIGHT,         XKB_KEY_Right },
+    { LW_KEY_CAPSLOCK,      XKB_KEY_Caps_Lock },
+    { LW_KEY_SCROLLLOCK,    XKB_KEY_Scroll_Lock },
+    { LW_KEY_PRINTSCREEN,   XKB_KEY_Print },
+    { LW_KEY_F1,            XKB_KEY_F1 },
+    { LW_KEY_F2,            XKB_KEY_F2 },
+    { LW_KEY_F3,            XKB_KEY_F3 },
+    { LW_KEY_F4,            XKB_KEY_F4 },
+    { LW_KEY_F5,            XKB_KEY_F5 },
+    { LW_KEY_F6,            XKB_KEY_F6 },
+    { LW_KEY_F7,            XKB_KEY_F7 },
+    { LW_KEY_F8,            XKB_KEY_F8 },
+    { LW_KEY_F9,            XKB_KEY_F9 },
+    { LW_KEY_F10,           XKB_KEY_F10 },
+    { LW_KEY_F11,           XKB_KEY_F11 },
+    { LW_KEY_F12,           XKB_KEY_F12 },
+    { LW_KEY_F13,           XKB_KEY_F13 },
+    { LW_KEY_F14,           XKB_KEY_F14 },
+    { LW_KEY_F15,           XKB_KEY_F15 },
+    { LW_KEY_F16,           XKB_KEY_F16 },
+    { LW_KEY_F17,           XKB_KEY_F17 },
+    { LW_KEY_F18,           XKB_KEY_F18 },
+    { LW_KEY_F19,           XKB_KEY_F19 },
+    { LW_KEY_F20,           XKB_KEY_F20 },
+    { LW_KEY_F21,           XKB_KEY_F21 },
+    { LW_KEY_F22,           XKB_KEY_F22 },
+    { LW_KEY_F23,           XKB_KEY_F23 },
+    { LW_KEY_F24,           XKB_KEY_F24 },
+    { LW_KEY_F25,           XKB_KEY_F25 },
+    { LW_KEY_SHIFT_LEFT,    XKB_KEY_Shift_L },
+    { LW_KEY_SHIFT_RIGHT,   XKB_KEY_Shift_R },
+    { LW_KEY_CTRL_LEFT,     XKB_KEY_Control_L },
+    { LW_KEY_CTRL_RIGHT,    XKB_KEY_Control_R },
+    { LW_KEY_ALT_LEFT,      XKB_KEY_Alt_L },
+    { LW_KEY_ALT_RIGHT,     XKB_KEY_Alt_R },
+    { LW_KEY_SUPER_LEFT,    XKB_KEY_Super_L },
+    { LW_KEY_0_KP,          XKB_KEY_KP_0 },
+    { LW_KEY_1_KP,          XKB_KEY_KP_1 },
+    { LW_KEY_2_KP,          XKB_KEY_KP_2 },
+    { LW_KEY_3_KP,          XKB_KEY_KP_3 },
+    { LW_KEY_4_KP,          XKB_KEY_KP_4 },
+    { LW_KEY_5_KP,          XKB_KEY_KP_5 },
+    { LW_KEY_6_KP,          XKB_KEY_KP_6 },
+    { LW_KEY_7_KP,          XKB_KEY_KP_7 },
+    { LW_KEY_8_KP,          XKB_KEY_KP_8 },
+    { LW_KEY_9_KP,          XKB_KEY_KP_9 },
+    { LW_KEY_SUPER_RIGHT,   XKB_KEY_Super_R },
+    { LW_KEY_NUMLOCK,       XKB_KEY_Num_Lock },
+    { LW_KEY_MENU,          XKB_KEY_Menu },
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     { LW_KEY_SPACE,         VK_SPACE },
@@ -799,7 +1016,7 @@ static const struct s_keymap {
 
 #  endif /* LIBWINDOW_WIN32 */
 
-    { LW_KEY_COUNT,         0 }
+    { LW_KEY_COUNT,         0x0000 }
 };
 
 
@@ -852,6 +1069,52 @@ LIBWINDOW_API bool  lw_createWindow(t_window *result, const size_t width, const 
     XMapWindow(window->xlib.display, window->xlib.window_id);
 
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    window->wayland.listener.registry = (struct wl_registry_listener) {
+        .global = wl_registry_global,
+        .global_remove = wl_registry_global_remove };
+    window->wayland.listener.seat = (struct wl_seat_listener) {
+        .capabilities = wl_seat_capabilities,
+        .name = wl_seat_name };
+    window->wayland.listener.keyboard = (struct wl_keyboard_listener) {
+        .keymap = wl_keyboard_keymap,
+        .enter = wl_keyboard_enter,
+        .leave = wl_keyboard_leave,
+        .key = wl_keyboard_key,
+        .modifiers = wl_keyboard_modifiers,
+        .repeat_info = wl_keyboard_repeat_info };
+    window->wayland.listener.pointer = (struct wl_pointer_listener) {
+        .enter = wl_pointer_enter,
+        .leave = wl_pointer_leave,
+        .motion = wl_pointer_motion,
+        .button = wl_pointer_button,
+        .axis = wl_pointer_axis,
+        .frame = wl_pointer_frame,
+        .axis_source = wl_pointer_axis_source,
+        .axis_stop = wl_pointer_axis_stop,
+        .axis_discrete = wl_pointer_axis_discrete,
+        .axis_value120 = wl_pointer_axis_value120 };
+
+    window->wayland.display = wl_display_connect(0);
+    if (!window->wayland.display) { return (false); }
+
+    window->wayland.registry = wl_display_get_registry(window->wayland.display);
+    if (!window->wayland.registry) { return (false); }
+
+    wl_registry_add_listener(window->wayland.registry, &window->wayland.listener.registry, window);
+    wl_display_roundtrip(window->wayland.display);
+
+    if (!window->wayland.compositor) { return (false); }
+    window->wayland.surface = wl_compositor_create_surface(window->wayland.compositor);
+    if (!window->wayland.surface) { return (false); }
+    wl_surface_commit(window->wayland.surface);
+
+    (void) width;
+    (void) height;
+    (void) title;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     window->win32.hinstance = GetModuleHandle(0);
@@ -888,6 +1151,22 @@ LIBWINDOW_API bool  lw_destroyWindow(t_window window) {
     if (window->xlib.display)   { XCloseDisplay(window->xlib.display), window->xlib.display = 0; }
 
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    /* memory-safe wayland's input disposal... */
+    if (window->wayland.pointer)  { wl_pointer_destroy(window->wayland.pointer), window->wayland.pointer = 0; }
+    if (window->wayland.keyboard) { wl_keyboard_destroy(window->wayland.keyboard), window->wayland.keyboard = 0; }
+    if (window->wayland.seat)     { wl_seat_destroy(window->wayland.seat), window->wayland.seat = 0; }
+
+    /* memory-safe wayland's frame disposal... */
+    if (window->wayland.surface)    { wl_surface_destroy(window->wayland.surface), window->wayland.surface = 0; }
+    if (window->wayland.compositor) { wl_compositor_destroy(window->wayland.compositor), window->wayland.compositor = 0; }
+
+    /* memory-safe wayland's client objects disposal... */
+    if (window->wayland.registry) { wl_registry_destroy(window->wayland.registry), window->wayland.registry = 0; }
+    if (window->wayland.display)  { wl_display_disconnect(window->wayland.display), window->wayland.display = 0; }
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
     
     PostQuitMessage(0);
@@ -907,6 +1186,9 @@ LIBWINDOW_API bool  lw_showWindow(t_window window) {
     XMapWindow(window->xlib.display, window->xlib.window_id);
 
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     ShowWindow(window->win32.hwnd, SW_SHOW);
@@ -925,6 +1207,9 @@ LIBWINDOW_API bool  lw_hideWindow(t_window window) {
     XUnmapWindow(window->xlib.display, window->xlib.window_id);
 
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     ShowWindow(window->win32.hwnd, SW_HIDE);
@@ -947,6 +1232,12 @@ LIBWINDOW_API bool  lw_getWindowSize(t_window window, size_t *width, size_t *hei
     if (height) { *height = attr.height; }
 
 #  endif /* LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    (void) width;
+    (void) height;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     RECT    area;
@@ -968,7 +1259,13 @@ LIBWINDOW_API bool  lw_setWindowSize(t_window window, const size_t width, const 
 
     if (!XResizeWindow(window->xlib.display, window->xlib.window_id, width, height)) { return (false); }
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    (void) width;
+    (void) height;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     (void) width;
@@ -998,7 +1295,13 @@ LIBWINDOW_API bool  lw_setWindowMinSize(t_window window, const size_t width, con
     hints.min_height = height > 0 ? height : 1;
     XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    (void) width;
+    (void) height;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     (void) width;
@@ -1024,7 +1327,13 @@ LIBWINDOW_API bool  lw_setWindowMaxSize(t_window window, const size_t width, con
     hints.max_height = height > 0 ? height : 1;
     XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    (void) width;
+    (void) height;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     (void) width;
@@ -1047,7 +1356,13 @@ LIBWINDOW_API bool  lw_getWindowPosition(t_window window, size_t *x, size_t *y) 
     if (x) { *x = attr.x; }
     if (y) { *y = attr.y; }
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    (void) x;
+    (void) y;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     RECT    area;
@@ -1076,7 +1391,13 @@ LIBWINDOW_API bool  lw_setWindowPosition(t_window window, const size_t x, const 
     hints.y = y;
     XSetWMNormalHints(window->xlib.display, window->xlib.window_id, &hints);
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    (void) x;
+    (void) y;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     (void) x;
@@ -1100,7 +1421,13 @@ LIBWINDOW_API bool  lw_getWindowTitle(t_window window, char *title, const size_t
     title[size - 1] = 0;
     XFree(fetch);
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+    (void) title;
+    (void) size;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     (void) title;
@@ -1119,7 +1446,12 @@ LIBWINDOW_API bool  lw_setWindowTitle(t_window window, const char *title) {
     
     if (!XStoreName(window->xlib.display, window->xlib.window_id, title)) { return (false); }
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+    
+    (void) title;
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
     (void) title;
@@ -1142,7 +1474,10 @@ LIBWINDOW_API void  *lw_getWindowProp(t_window window, const uint64_t prop) {
         case (LW_PROP_X11_WINDOW_ID): { return (&window->xlib.window_id); }
         case (LW_PROP_X11_SCREEN_ID): { return (&window->xlib.screen_id); }
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
         
         case (LW_PROP_WIN32_HWND): { return (window->win32.hwnd); }
@@ -1170,7 +1505,10 @@ LIBWINDOW_API bool  lw_pollEvents(t_window window, t_event *event) {
 
     lw_pollEventsPlatform(window);
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
     
     MSG msg;
@@ -1219,7 +1557,10 @@ LIBWINDOW_API bool  lw_flushEvent(t_window window) {
     
     if (!XFlush(window->xlib.display)) { return (false); }
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
 #  endif /* LIBWINDOW_WIN32 */
@@ -1231,14 +1572,14 @@ LIBWINDOW_API bool  lw_flushEvent(t_window window) {
 
 LIBWINDOW_API uint64_t  lw_getTime(void) {
 
-#  if defined (LIBWINDOW_X11)
+#  if defined (LIBWINDOW_X11) || defined (LIBWINDOW_WAYLAND)
 
     struct timeval  time;
     
     gettimeofday(&time, 0);
     return (time.tv_sec * 1000 + time.tv_usec / 1000);
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11, LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
     
     SYSTEMTIME  systemtime;
@@ -1263,8 +1604,6 @@ LIBWINDOW_API bool  lw_waitTime(uint64_t ms) {
 
 /* SECTION: Internal API
  * * * * * * * * * * * */
-
-/* MODULE: Event */
 
 #  if defined (LIBWINDOW_X11)
 
@@ -1403,7 +1742,200 @@ static bool lw_pollEventsPlatform(t_window window) {
     return (true);
 }
 
-#  endif /* LIBWINDOW_X11 */
+#  endif /*LIBWINDOW_X11 */
+#  if defined (LIBWINDOW_WAYLAND)
+
+static void wl_registry_global(void *data, struct wl_registry *wl_registry, uint32_t name, const char *interface, uint32_t version) {
+    t_window    window;
+
+    window = (t_window) data;
+    if (!window) { return; }
+
+    if (!strcmp(interface, wl_compositor_interface.name)) {
+        /* Ensure the desired interface version... */
+        if (version != 4) { return; }
+
+        window->wayland.compositor = (struct wl_compositor *) wl_registry_bind(wl_registry, name, (const struct wl_interface *) &wl_compositor_interface, version);
+    }
+    else if (!strcmp(interface, wl_seat_interface.name)) {
+        /* Ensure the desired interface version... */
+        if (version != 1) { return; }
+
+        window->wayland.seat = (struct wl_seat *) wl_registry_bind(wl_registry, name, (const struct wl_interface *) &wl_seat_interface, version);
+        if (!window->wayland.seat) { return; }
+
+        wl_seat_add_listener(window->wayland.seat, &window->wayland.listener.seat, window);
+    }
+}
+
+static void wl_registry_global_remove(void *data, struct wl_registry *wl_registry, uint32_t name) {
+    (void) data;
+    (void) wl_registry;
+    (void) name;
+}
+
+
+
+static void wl_seat_capabilities(void *data, struct wl_seat *wl_seat, uint32_t capabilities) {
+    t_window    window;
+
+    window = (t_window) data;
+    if (!window) { return; }
+
+    /* Create keyboard... */
+    if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD && !window->wayland.keyboard) {
+        window->wayland.keyboard = wl_seat_get_keyboard(wl_seat);
+        if (!window->wayland.keyboard) { return; }
+
+        wl_keyboard_add_listener(window->wayland.keyboard, &window->wayland.listener.keyboard, window);
+    }
+    
+    /* Create mouse pointer... */
+    if (capabilities & WL_SEAT_CAPABILITY_POINTER && !window->wayland.pointer) {
+        window->wayland.pointer = wl_seat_get_pointer(wl_seat);
+        if (!window->wayland.pointer) { return; }
+
+        wl_pointer_add_listener(window->wayland.pointer, &window->wayland.listener.pointer, window);
+    }
+}
+
+static void wl_seat_name(void *data, struct wl_seat *wl_seat, const char *name) {
+    (void) data;
+    (void) wl_seat;
+    (void) name;
+}
+
+
+
+static void wl_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard, uint32_t format, int32_t fd, uint32_t size) {
+    (void) data;
+    (void) wl_keyboard;
+    (void) format;
+    (void) fd;
+    (void) size;
+}
+
+static void wl_keyboard_enter(void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, struct wl_surface *surface, struct wl_array *keys) {
+    (void) data;
+    (void) wl_keyboard;
+    (void) serial;
+    (void) surface;
+    (void) keys;
+}
+
+static void wl_keyboard_leave(void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, struct wl_surface *surface) {
+    (void) data;
+    (void) wl_keyboard;
+    (void) serial;
+    (void) surface;
+}
+
+static void wl_keyboard_key(void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
+    (void) data;
+    (void) wl_keyboard;
+    (void) serial;
+    (void) time;
+    (void) key;
+    (void) state;
+
+    /* NOTE: Temporary */
+    lw_inputPlatformToLibrary(key, (uint64_t *) &key);
+}
+
+static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard, uint32_t serial, uint32_t mods_depressed, uint32_t mods_latched, uint32_t mods_locked, uint32_t group) {
+    (void) data;
+    (void) wl_keyboard;
+    (void) serial;
+    (void) mods_depressed;
+    (void) mods_latched;
+    (void) mods_locked;
+    (void) group;
+}
+
+static void wl_keyboard_repeat_info(void *data, struct wl_keyboard *wl_keyboard, int32_t rate, int32_t delay) {
+    (void) data;
+    (void) wl_keyboard;
+    (void) rate;
+    (void) delay;
+}
+
+
+
+static void wl_pointer_enter(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
+    (void) data;
+    (void) wl_pointer;
+    (void) serial;
+    (void) surface;
+    (void) surface_x;
+    (void) surface_y;
+}
+
+static void wl_pointer_leave(void *data, struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface) {
+    (void) data;
+    (void) wl_pointer;
+    (void) serial;
+    (void) surface;
+}
+
+static void wl_pointer_motion(void *data, struct wl_pointer *wl_pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y) {
+    (void) data;
+    (void) wl_pointer;
+    (void) time;
+    (void) surface_x;
+    (void) surface_y;
+}
+
+static void wl_pointer_button(void *data, struct wl_pointer *wl_pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
+    (void) data;
+    (void) wl_pointer;
+    (void) serial;
+    (void) time;
+    (void) button;
+    (void) state;
+}
+
+static void wl_pointer_axis(void *data, struct wl_pointer *wl_pointer, uint32_t time, uint32_t axis, wl_fixed_t value) {
+    (void) data;
+    (void) wl_pointer;
+    (void) time;
+    (void) axis;
+    (void) value;
+}
+
+static void wl_pointer_frame(void *data, struct wl_pointer *wl_pointer) {
+    (void) data;
+    (void) wl_pointer;
+}
+
+static void wl_pointer_axis_source(void *data, struct wl_pointer *wl_pointer, uint32_t axis_source) {
+    (void) data;
+    (void) wl_pointer;
+    (void) axis_source;
+}
+
+static void wl_pointer_axis_stop(void *data, struct wl_pointer *wl_pointer, uint32_t time, uint32_t axis) {
+    (void) data;
+    (void) wl_pointer;
+    (void) time;
+    (void) axis;
+}
+
+static void wl_pointer_axis_discrete(void *data, struct wl_pointer *wl_pointer, uint32_t axis, int32_t discrete) {
+    (void) data;
+    (void) wl_pointer;
+    (void) axis;
+    (void) discrete;
+}
+
+static void wl_pointer_axis_value120(void *data, struct wl_pointer *wl_pointer, uint32_t axis, int32_t value120) {
+    (void) data;
+    (void) wl_pointer;
+    (void) axis;
+    (void) value120;
+}
+
+
+#  endif /* LIBWINDOW_WAYLAND */
 #  if defined (LIBWINDOW_WIN32)
 
 static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
